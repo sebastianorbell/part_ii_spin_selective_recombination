@@ -21,23 +21,35 @@ import scipy.linalg as la
 import matplotlib.pyplot as plt
 from scipy.linalg import inv as inv
 
-class Liouville_space:
+class rotational_relaxation:
     
 
     def __init__(self,aniso_g1,aniso_g2,hyperfine_1,hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate):
-        # declare constants
+        # declare constants and identities
         self.mu_b = 1.0
+        self.d_perp = 1.0e0
+        self.d_parr = 1.0e0
+        
+        self.iden2 = np.eye(2)
+        self.iden4 = np.eye(4)
+        self.iden16 = np.eye(16)
         
         #declare matrices
         self.sx = np.array([[0,0.5],[0.5,0]])
         self.sy = np.array([[0,-0.5j],[0.5j,0]])
         self.sz = np.array([[0.5,0],[0,-0.5]])
+        
+        self.s1_x = np.kron(self.sx,self.iden2)
+        self.s1_y = np.kron(self.sy,self.iden2)
+        self.s1_z = np.kron(self.sz,self.iden2)
+        
+        self.s2_x = np.kron(self.iden2,self.sx)
+        self.s2_y = np.kron(self.iden2,self.sy)
+        self.s2_z = np.kron(self.iden2,self.sz)
+        
         self.s1_s2 = np.kron(self.sx,self.sx) + np.kron(self.sy,self.sy) + np.kron(self.sz,self.sz)
         self.pro_trip = 0.75 * np.eye(4) + self.s1_s2
         self.pro_sing = 0.25 * np.eye(4) - self.s1_s2
-        self.iden2 = np.eye(2)
-        self.iden4 = np.eye(4)
-        self.iden16 = np.eye(16)
         
         # Declare Liouvillian density operators
         self.p0_lou = np.zeros([32,1],dtype = complex)
@@ -58,12 +70,13 @@ class Liouville_space:
         self.B = np.zeros([32,32], dtype = complex)
         
         # Tensor terms
-        self.elec = np.zeros((5,5))
+        self.elec = np.zeros([5,5,4,4],dtype = complex)
         
         # declare class variable
         
         self.aniso_g1 = aniso_g1
         self.aniso_g2 = aniso_g2
+        self.g_mat = np.zeros([5],dtype = complex)
         
         self.hyperfine_1 = hyperfine_1
         self.hyperfine_2 = hyperfine_2
@@ -167,29 +180,32 @@ class Liouville_space:
     # Define rank 2 g-tensor component
     def rank_2_g_tensor(self):
         
+        
         # g1
+        self.g1 = self.g_mat
         #self.g1_plus_2 
-        self.g1[4] = 0.5*(self.hyperfine_1[0,0]-self.hyperfine_1[1,1]-1.0j*(self.hyperfine_1[0,1]+self.hyperfine_1[1,0]))
+        self.g1[4] = 0.5*(self.aniso_g1[0,0]-self.aniso_g1[1,1]-1.0j*(self.aniso_g1[0,1]+self.aniso_g1[1,0]))
         #self.g1_plus_1 
-        self.g1[3] = -0.5*(self.hyperfine_1[0,2]+self.hyperfine_1[2,0]-1.0j*(self.hyperfine_1[1,2]+self.hyperfine_1[2,1]))
+        self.g1[3] = -0.5*(self.aniso_g1[0,2]+self.aniso_g1[2,0]-1.0j*(self.aniso_g1[1,2]+self.aniso_g1[2,1]))
         #self.g1_zero 
-        self.g1[2] = (1/np.sqrt(6))*(2*self.hyperfine_1[2,2]-(self.hyperfine_1[0,0]+self.hyperfine_1[1,1]))
+        self.g1[2] = (1/np.sqrt(6))*(2*self.aniso_g1[2,2]-(self.aniso_g1[0,0]+self.aniso_g1[1,1]))
         #self.g1_minus_1 
-        self.g1[1] = 0.5*(self.hyperfine_1[0,2]+self.hyperfine_1[2,0]+1.0j*(self.hyperfine_1[1,2]+self.hyperfine_1[2,1]))
+        self.g1[1] = 0.5*(self.aniso_g1[0,2]+self.aniso_g1[2,0]+1.0j*(self.aniso_g1[1,2]+self.aniso_g1[2,1]))
         #self.g1_minus_2 
-        self.g1[0] = 0.5*(self.hyperfine_1[0,0]-self.hyperfine_1[1,1]+1.0j*(self.hyperfine_1[0,1]+self.hyperfine_1[1,0]))
+        self.g1[0] = 0.5*(self.aniso_g1[0,0]-self.aniso_g1[1,1]+1.0j*(self.aniso_g1[0,1]+self.aniso_g1[1,0]))
         
         # g2
+        self.g2 = self.g_mat
         #self.g2_plus_2 
-        self.g2[4] = 0.5*(self.hyperfine_2[0,0]-self.hyperfine_2[1,1]-1.0j*(self.hyperfine_2[0,1]+self.hyperfine_2[1,0]))
+        self.g2[4] = 0.5*(self.aniso_g2[0,0]-self.aniso_g2[1,1]-1.0j*(self.aniso_g2[0,1]+self.aniso_g2[1,0]))
         #self.g2_plus_1 
-        self.g2[3] = -0.5*(self.hyperfine_2[0,2]+self.hyperfine_2[2,0]-1.0j*(self.hyperfine_2[1,2]+self.hyperfine_2[2,1]))
+        self.g2[3] = -0.5*(self.aniso_g2[0,2]+self.aniso_g2[2,0]-1.0j*(self.aniso_g2[1,2]+self.aniso_g2[2,1]))
         #self.g2_zero 
-        self.g2[2] = (1/np.sqrt(6))*(2*self.hyperfine_2[2,2]-(self.hyperfine_2[0,0]+self.hyperfine_2[1,1]))
+        self.g2[2] = (1/np.sqrt(6))*(2*self.aniso_g2[2,2]-(self.aniso_g2[0,0]+self.aniso_g2[1,1]))
         #self.g2_minus_1 
-        self.g2[1] = 0.5*(self.hyperfine_2[0,2]+self.hyperfine_2[2,0]+1.0j*(self.hyperfine_2[1,2]+self.hyperfine_2[2,1]))
+        self.g2[1] = 0.5*(self.aniso_g2[0,2]+self.aniso_g2[2,0]+1.0j*(self.aniso_g2[1,2]+self.aniso_g2[2,1]))
         #self.g2_minus_2 
-        self.g2[0] = 0.5*(self.hyperfine_2[0,0]-self.hyperfine_2[1,1]+1.0j*(self.hyperfine_2[0,1]+self.hyperfine_2[1,0]))
+        self.g2[0] = 0.5*(self.aniso_g2[0,0]-self.aniso_g2[1,1]+1.0j*(self.aniso_g2[0,1]+self.aniso_g2[1,0]))
         
         return
     
@@ -203,17 +219,17 @@ class Liouville_space:
         self.u1z = self.g1 * self.omega1[2]
         
         self.elec_1 = self.elec
-        
-        #self.elec1_t_plus_2 
-        self.elec_1[:,4] = 0.5 * (self.u1x + 1.0j*self.u1y)*(self.sx + 1.0j*self.sy)
-        #self.elec1_t_plus_1 
-        self.elec_1[:,3] = 0.5*((self.u1x + 1.0j*self.u1x)*self.sz + (self.sx + 1.0j*self.sy)*self.u1z)
-        #self.elec1_t_zero 
-        self.elec_1[:,2]= (-1.0/2*np.sqrt(6))*((self.u1x + 1.0j*self.u1y)*(self.sx - 1.0j*self.sy) + (self.u1x - 1.0j*self.u1y)*(self.sx + 1.0j*self.sy) + 4.0*self.sz*self.u1z)
-        #self.elec1_t_minus_1 
-        self.elec_1[:,1] = -0.5*((self.u1x - 1.0j*self.u1y)*self.sz + (self.sx - 1.0j*self.sy)*self.u1z)
-        #self.elec1_t_minus_2 
-        self.elec_1[:,0]= 0.5 * (self.u1x - 1.0j*self.u1y)*(self.sx - 1.0j*self.sy)
+        for i in range(0,5):
+            #self.elec1_t_plus_2 
+            self.elec_1[i,4,:,:] = 0.5 * (self.u1x[i] + 1.0j*self.u1y[i])*(self.s1_x + 1.0j*self.s1_y)
+            #self.elec1_t_plus_1 
+            self.elec_1[i,3,:,:] = 0.5*((self.u1x[i] + 1.0j*self.u1y[i])*self.s1_z + (self.s1_x + 1.0j*self.s1_y)*self.u1z[i])
+            #self.elec1_t_zero 
+            self.elec_1[i,2,:,:]= (-1.0/2*np.sqrt(6))*((self.u1x[i] + 1.0j*self.u1y[i])*(self.s1_x - 1.0j*self.s1_y) + (self.u1x[i] - 1.0j*self.u1y[i])*(self.s1_x + 1.0j*self.s1_y) + 4.0*self.s1_z*self.u1z[i])
+            #self.elec1_t_minus_1 
+            self.elec_1[i,1,:,:] = -0.5*((self.u1x[i] - 1.0j*self.u1y[i])*self.s1_z + (self.s1_x - 1.0j*self.s1_y)*self.u1z[i])
+            #self.elec1_t_minus_2 
+            self.elec_1[i,0,:,:]= 0.5 * (self.u1x[i] - 1.0j*self.u1y[i])*(self.s1_x - 1.0j*self.s1_y)
         
         # Electron 2
         
@@ -223,21 +239,22 @@ class Liouville_space:
         
         self.elec_2 = self.elec
         
-        #self.elec2_t_plus_2 
-        self.elec_2[:,4] = 0.5 * (self.u2x + 1.0j*self.u2y)*(self.sx + 1.0j*self.sy)
-        #self.elec2_t_plus_1 
-        self.elec_2[:,3] = 0.5*((self.u2x + 1.0j*self.u2x)*self.sz + (self.sx + 1.0j*self.sy)*self.u2z)
-        #self.elec2_t_zero 
-        self.elec_2[:,2]= (-1.0/2*np.sqrt(6))*((self.u2x + 1.0j*self.u2y)*(self.sx - 1.0j*self.sy) + (self.u2x - 1.0j*self.u2y)*(self.sx + 1.0j*self.sy) + 4.0*self.sz*self.u2z)
-        #self.elec2_t_minus_1 
-        self.elec_2[:,1] = -0.5*((self.u2x - 1.0j*self.u2y)*self.sz + (self.sx - 1.0j*self.sy)*self.u2z)
-        #self.elec2_t_minus_2 
-        self.elec_2[:,0]= 0.5 * (self.u2x - 1.0j*self.u2y)*(self.sx - 1.0j*self.sy)
+        for i in range(0,5):
+            #self.elec2_t_plus_2 
+            self.elec_2[i,4,:,:] = 0.5 * (self.u2x[i] + 1.0j*self.u2y[i])*(self.s2_x + 1.0j*self.s2_y)
+            #self.elec2_t_plus_1 
+            self.elec_2[i,3,:,:] = 0.5*((self.u2x[i] + 1.0j*self.u2y[i])*self.s2_z + (self.s2_x + 1.0j*self.s2_y)*self.u2z[i])
+            #self.elec2_t_zero 
+            self.elec_2[i,2,:,:]= (-1.0/2*np.sqrt(6))*((self.u2x[i] + 1.0j*self.u2y[i])*(self.s2_x - 1.0j*self.s2_y) + (self.u2x[i] - 1.0j*self.u2y[i])*(self.s2_x + 1.0j*self.s2_y) + 4.0*self.s2_z*self.u2z[i])
+            #self.elec2_t_minus_1 
+            self.elec_2[i,1,:,:] = -0.5*((self.u2x[i] - 1.0j*self.u2y[i])*self.s2_z + (self.s2_x - 1.0j*self.s2_y)*self.u2z[i])
+            #self.elec2_t_minus_2 
+            self.elec_2[i,0,:,:]= 0.5 * (self.u2x[i] - 1.0j*self.u2y[i])*(self.s2_x - 1.0j*self.s2_y)
         
         return 
         
     # Construct the redfield superoperator matrix
-    def redfield(self):
+    def Redfield_Matrix(self):
         
         # Calculate eigenvalues and eigenvectors of reference Liouvillian
         self.lam, self.p = la.eig(self.ltot)
@@ -246,12 +263,12 @@ class Liouville_space:
         self.red = self.redfield
 
         # i = n and j = m
-        for i in range(i=0,5):
-            for j in range(j=0,5):
+        for i in range(0,5):
+            for j in range(0,5):
                 # Define qmn = mu_b*(g1_m*t1_n + g2_m*t2_n)
                 self.Bmn = self.B
-                self.qmn = self.mu_b * (self.elec_1[i,j]+self.elec_2[i,j])
-                self.amn = np.kron(self.qmn,self.iden16) - np.kron(self.iden16,np.transpose(self.qmn))
+                self.qmn = self.mu_b * (self.elec_1[i,j,:,:]+self.elec_2[i,j,:,:])
+                self.amn = np.kron(self.qmn,self.iden4) - np.kron(self.iden4,np.transpose(self.qmn))
                 self.Bmn[:16,:16] = self.amn
                 self.Bmn[16:,16:] = self.amn
                 
@@ -272,9 +289,79 @@ class Liouville_space:
         self.liouville()
         self.rank_2_g_tensor()
         self.rank_two_component()
-        self.redfield()
+        self.Redfield_Matrix()
       
         trip_yield = np.matmul(self.pt_lou,np.matmul(inv(self.ltot+self.red),self.p0_lou))
         #print(np.trace(self.red))
         return np.real(-self.kt*trip_yield)
     
+#-----------------------------------------------------------------
+# -----------------------------------------------------------------
+# -----------------------------------------------------------------
+# Main, units of mT
+        
+t0 = time.clock()
+random.seed()
+
+num_samples = 100
+dividor = 1.0/np.float(num_samples)
+    
+# Define variables
+aniso_g1 = np.ones((3,3))
+aniso_g2 = np.ones((3,3))
+
+hyperfine_1 = np.array([2.308839e+00, 9.037700e-01, -7.757500e-02, -3.404200e-02, 1.071863e+00, 2.588280e-01, 1.073569e+00, 2.598780e-01, -7.764800e-02, -3.420200e-02, 2.308288e+00, 9.022930e-01, -1.665630e-01, -1.665630e-01, -1.665630e-01, -1.664867e-01, -1.664867e-01, -1.664867e-01, 8.312600e-01])
+hyperfine_2 = np.array([-0.1927,-0.1927,-0.1927,-0.1927,-0.0963,-0.0963])
+
+spin_numbers_1 = np.array([0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.0])
+spin_numbers_2 = np.array([0.5,0.5,0.5,0.5,1.0,1.0])
+
+omega1 = [0.0,0.0,0.0]
+omega2 = [0.0,0.0,0.0]
+
+J = 3.0
+dj = 1.50
+
+ks = 0.05649 
+kt = 0.6218966518 
+
+tau_c = 5.6818e5
+exchange_rate = 1.0e0/(2.0e0*tau_c)
+
+samples = np.arange(1.0,np.float(num_samples))
+trip = np.zeros_like(samples)
+
+field = np.linspace(0,50,20)
+triplet_yield = np.zeros_like(field)          
+
+for index_field,item_field in enumerate(field):
+    total_t = 0.0
+    
+    omega1[2] = item_field
+    omega2[2] = item_field
+    
+    for index, item in enumerate(samples):
+
+        # Define class       
+        relaxation = rotational_relaxation(aniso_g1,aniso_g2,hyperfine_1,hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate)
+        # Calculate triplet yield
+        total_t += relaxation.triplet_yield()
+        trip[index] = np.float(total_t)/np.float(item)
+    
+    triplet_yield[index_field] = trip[num_samples-2]
+
+
+print('----------------------------------')
+print('**********************************')
+print(time.clock() - t0)
+print('Monte Carlo samples',num_samples)
+print('number of points to plot',len(field))
+print('tau',tau_c)
+print('**********************************')
+print('----------------------------------')
+
+plt.plot(samples,trip)
+plt.show()
+plt.clf()
+
+plt.plot(field,triplet_yield)
