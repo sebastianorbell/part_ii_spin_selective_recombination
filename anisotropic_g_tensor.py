@@ -26,9 +26,8 @@ class rotational_relaxation:
 
     def __init__(self,aniso_g1,aniso_g2,hyperfine_1,hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate):
         # declare constants and identities
-        self.mu_b = 1.0
-        self.d_perp = 1.0e0
-        self.d_parr = 1.0e0
+        self.d_perp = 1.0e1
+        self.d_parr = 1.0e1
         
         self.iden2 = np.eye(2)
         self.iden4 = np.eye(4)
@@ -267,7 +266,7 @@ class rotational_relaxation:
             for j in range(0,5):
                 # Define qmn = mu_b*(g1_m*t1_n + g2_m*t2_n)
                 self.Bmn = self.B
-                self.qmn = self.mu_b * (self.elec_1[i,j,:,:]+self.elec_2[i,j,:,:])
+                self.qmn = self.elec_1[i,j,:,:]+self.elec_2[i,j,:,:]
                 self.amn = np.kron(self.qmn,self.iden4) - np.kron(self.iden4,np.transpose(self.qmn))
                 self.Bmn[:16,:16] = self.amn
                 self.Bmn[16:,16:] = self.amn
@@ -319,19 +318,19 @@ spin_numbers_2 = np.array([0.5,0.5,0.5,0.5,1.0,1.0])
 omega1 = [0.0,0.0,0.0]
 omega2 = [0.0,0.0,0.0]
 
-J = 3.0
-dj = 1.50
+J = 4.0
+dj = 3.0
 
 ks = 0.05649 
 kt = 0.6218966518 
 
-tau_c = 5.6818e5
+tau_c = 5.6818e-5
 exchange_rate = 1.0e0/(2.0e0*tau_c)
 
 samples = np.arange(1.0,np.float(num_samples))
 trip = np.zeros_like(samples)
 
-field = np.linspace(0,50,20)
+field = np.linspace(0.0,6.0,60)
 triplet_yield = np.zeros_like(field)          
 
 for index_field,item_field in enumerate(field):
@@ -365,3 +364,6 @@ plt.show()
 plt.clf()
 
 plt.plot(field,triplet_yield)
+plt.ylabel('Triplet Yield')
+plt.xlabel('field')
+plt.title('Anisotropic g tensor')
