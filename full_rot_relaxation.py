@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Oct 24 13:47:31 2018
+Created on Fri Oct 26 10:06:50 2018
 
 @author: sebastianorbell
 """
@@ -11,7 +11,8 @@ Created on Wed Oct 24 13:47:31 2018
 
 -- The two site, J modulation, exchange is modelled using an exact quantum approach.
 
--- The time dependent anisotropic g tensor component is treated using the Redfield model.
+-- The time dependent anisotropic g tensor, dipolar coupling tensor and hyperfine tensors
+     are treated using the Redfield model.
 """
 
 import time
@@ -24,7 +25,7 @@ from scipy.linalg import inv as inv
 class rotational_relaxation:
     
 
-    def __init__(self,aniso_g1,aniso_g2,hyperfine_1,hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate):
+    def __init__(self,aniso_dipolar,aniso_g1,aniso_g2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate):
         # declare constants and identities
         self.d_perp = 1.0e1
         self.d_parr = 1.0e1
@@ -70,15 +71,35 @@ class rotational_relaxation:
         
         # Tensor terms
         self.elec = np.zeros([5,5,4,4],dtype = complex)
+        self.uq = np.zeros([5,4,4],dtype = complex)
         
         # declare class variable
         
         self.aniso_g1 = aniso_g1
         self.aniso_g2 = aniso_g2
         self.g_mat = np.zeros([5],dtype = complex)
+        self.g1_iso = np.trace(self.aniso_g1)/3.0
+        self.g2_iso = np.trace(self.aniso_g2)/3.0
         
-        self.hyperfine_1 = hyperfine_1
-        self.hyperfine_2 = hyperfine_2
+        self.hyperfine_1 = aniso_hyperfine_1
+        self.h1_size = np.size(self.hyperfine_1[:,0,0])
+        self.h1 = np.zeros([self.h1_size,5], dtype = complex)
+        self.iso_h1 = np.zeros((self.h1_size))
+        for i in range(0,self.h1_size):
+            self.iso_h1[i] = np.trace(self.hyperfine_1[i,:,:])
+        self.iso_h1 = self.iso_h1/3.0
+        
+        self.hyperfine_2 = aniso_hyperfine_2
+        self.h2_size = np.size(self.hyperfine_2[:,0,0])
+        self.h2 = np.zeros([self.h2_size,5], dtype = complex)
+        self.iso_h2 = np.zeros((self.h2_size))
+        for i in range(0,self.h2_size):
+            self.iso_h2[i] = np.trace(self.hyperfine_2[i,:,:])
+        self.iso_h2 = self.iso_h2/3.0
+        
+        self.dipolar = aniso_dipolar
+        self.d_rank_2 = np.zeros([5],dtype = complex)
+        self.iso_dipolar = np.trace(self.dipolar)/3.0
         
         self.ks = ks
         self.kt = kt
@@ -91,8 +112,8 @@ class rotational_relaxation:
         self.omega1 = omega1
         self.omega2 = omega2
         
-        self.n1_nuclear_spins = len(self.hyperfine_1)
-        self.n2_nuclear_spins = len(self.hyperfine_2)
+        self.n1_nuclear_spins = self.h1_size
+        self.n2_nuclear_spins = self.h2_size
         
         self.spin_numbers_1 = spin_numbers_1
         self.spin_numbers_2 = spin_numbers_2
@@ -150,8 +171,8 @@ class rotational_relaxation:
     # Construct the total, time independent, zeeman field.
     def Tot_zeeman_field(self):
         
-        self.omegatot_1 = self.omega1 + np.sum(np.multiply(self.hyperfine_1, self.nuc_vecs_1),1)
-        self.omegatot_2 = self.omega2 + np.sum(np.multiply(self.hyperfine_2, self.nuc_vecs_2),1)
+        self.omegatot_1 = self.omega1 + np.sum(np.multiply(self.iso_h1, self.nuc_vecs_1),1)
+        self.omegatot_2 = self.omega2 + np.sum(np.multiply(self.iso_h2, self.nuc_vecs_2),1)
         
         return
     
@@ -160,8 +181,8 @@ class rotational_relaxation:
         self.hamiltonian = self.h0
         self.hamiltonian += np.kron(self.omegatot_1[0] * self.sx + self.omegatot_1[1] * self.sy + self.omegatot_1[2] * self.sz, self.iden2)
         self.hamiltonian += np.kron(self.iden2, self.omegatot_2[0] * self.sx + self.omegatot_2[1] * self.sy + self.omegatot_2[2] * self.sz)
-        self.hamiltonian_a = self.hamiltonian - 2.0*(self.J_couple + self.del_J_couple)*self.s1_s2
-        self.hamiltonian_b = self.hamiltonian - 2.0*(self.J_couple - self.del_J_couple)*self.s1_s2
+        self.hamiltonian_a = self.hamiltonian + (-2.0*(self.J_couple + self.del_J_couple)+self.iso_dipolar)*self.s1_s2
+        self.hamiltonian_b = self.hamiltonian + (-2.0*(self.J_couple - self.del_J_couple)+self.iso_dipolar)*self.s1_s2
                 
         return
    
@@ -178,7 +199,6 @@ class rotational_relaxation:
     
     # Define rank 2 g-tensor component
     def rank_2_g_tensor(self):
-        
         
         # g1
         self.g1 = self.g_mat
@@ -208,16 +228,68 @@ class rotational_relaxation:
         
         return
     
-        # Define rank 2 tensor product components of B0 and Si
+    # Define rank 2 hyperfine-tensor components
+    def rank_2_hyperfine(self):
+        
+        # hyperfine tensors electron 1 
+        #self.h1_plus_2 
+        self.h1[:,4] = 0.5*(self.hyperfine_1[:,0,0]-self.hyperfine_1[:,1,1]-1.0j*(self.hyperfine_1[:,0,1]+self.hyperfine_1[:,1,0]))
+        #self.h1_plus_1 
+        self.h1[:,3] = -0.5*(self.hyperfine_1[:,0,2]+self.hyperfine_1[:,2,0]-1.0j*(self.hyperfine_1[:,1,2]+self.hyperfine_1[:,2,1]))
+        #self.h1_zero 
+        self.h1[:,2] = (1/np.sqrt(6))*(2*self.hyperfine_1[:,2,2]-(self.hyperfine_1[:,0,0]+self.hyperfine_1[:,1,1]))
+        #self.h1_minus_1 
+        self.h1[:,1] = 0.5*(self.hyperfine_1[:,0,2]+self.hyperfine_1[:,2,0]+1.0j*(self.hyperfine_1[:,1,2]+self.hyperfine_1[:,2,1]))
+        #self.h1_minus_2 
+        self.h1[:,0] = 0.5*(self.hyperfine_1[:,0,0]-self.hyperfine_1[:,1,1]+1.0j*(self.hyperfine_1[:,0,1]+self.hyperfine_1[:,1,0]))
+        
+       # hyperfine tensors electron 2
+        #self.h2_plus_2 
+        self.h2[:,4] = 0.5*(self.hyperfine_2[:,0,0]-self.hyperfine_2[:,1,1]-1.0j*(self.hyperfine_2[:,0,1]+self.hyperfine_2[:,1,0]))
+        #self.h2_plus_1 
+        self.h2[:,3] = -0.5*(self.hyperfine_2[:,0,2]+self.hyperfine_2[:,2,0]-1.0j*(self.hyperfine_2[:,1,2]+self.hyperfine_2[:,2,1]))
+        #self.h2_zero 
+        self.h2[:,2] = (1/np.sqrt(6))*(2*self.hyperfine_2[:,2,2]-(self.hyperfine_2[:,0,0]+self.hyperfine_2[:,1,1]))
+        #self.h2_minus_1 
+        self.h2[:,1] = 0.5*(self.hyperfine_2[:,0,2]+self.hyperfine_2[:,2,0]+1.0j*(self.hyperfine_2[:,1,2]+self.hyperfine_2[:,2,1]))
+        #self.h2_minus_2 
+        self.h2[:,0] = 0.5*(self.hyperfine_2[:,0,0]-self.hyperfine_2[:,1,1]+1.0j*(self.hyperfine_2[:,0,1]+self.hyperfine_2[:,1,0]))
+        
+        
+        return
+    
+    # Define rank 2 dipolar tensor component
+    def rank_2_dipolar(self):
+
+        #self.d_rank_2_plus_2 
+        self.d_rank_2[4] = 0.5*(self.dipolar[0,0]-self.dipolar[1,1]-1.0j*(self.dipolar[0,1]+self.dipolar[1,0]))
+        #self.d_rank_2_plus_1 
+        self.d_rank_2[3] = -0.5*(self.dipolar[0,2]+self.dipolar[2,0]-1.0j*(self.dipolar[1,2]+self.dipolar[2,1]))
+        #self.d_rank_2_zero 
+        self.d_rank_2[2] = (1/np.sqrt(6))*(2*self.dipolar[2,2]-(self.dipolar[0,0]+self.dipolar[1,1]))
+        #self.d_rank_2_minus_1 
+        self.d_rank_2[1] = 0.5*(self.dipolar[0,2]+self.dipolar[2,0]+1.0j*(self.dipolar[1,2]+self.dipolar[2,1]))
+        #self.d_rank_2_minus_2 
+        self.d_rank_2[0] = 0.5*(self.dipolar[0,0]-self.dipolar[1,1]+1.0j*(self.dipolar[0,1]+self.dipolar[1,0]))
+    
+        return
+    
+    # Define rank 2 tensor product components
     def rank_two_component(self):
         
         # Electron 1
         
-        self.u1x = self.g1 * self.omega1[0]
-        self.u1y = self.g1 * self.omega1[1]
-        self.u1z = self.g1 * self.omega1[2]
+        self.u1x = self.g1 * self.omega1[0] + np.sum(self.h1[:,:] * self.nuc_vecs_1[0,:,None],0)
+        self.u1y = self.g1 * self.omega1[1] + np.sum(self.h1[:,:] * self.nuc_vecs_1[1,:,None],0)
+        self.u1z = self.g1 * self.omega1[2] + np.sum(self.h1[:,:] * self.nuc_vecs_1[2,:,None],0)
+        
+        # for i in range(0,self.h1_size):
+        #   self.u1x += self.h1[i,:] * self.nuc_vecs_1[0,i]
+        #    self.u1y += self.h1[i,:] * self.nuc_vecs_1[1,i]
+        #    self.u1z += self.h1[i,:] * self.nuc_vecs_1[2,i]
         
         self.elec_1 = self.elec
+        
         for i in range(0,5):
             #self.elec1_t_plus_2 
             self.elec_1[i,4,:,:] = 0.5 * (self.u1x[i] + 1.0j*self.u1y[i])*(self.s1_x + 1.0j*self.s1_y)
@@ -232,9 +304,14 @@ class rotational_relaxation:
         
         # Electron 2
         
-        self.u2x = self.g2 * self.omega2[0]
-        self.u2y = self.g2 * self.omega2[1]
-        self.u2z = self.g2 * self.omega2[2]
+        self.u2x = self.g2 * self.omega2[0] + np.sum(self.h2[:,:] * self.nuc_vecs_2[0,:,None],0)
+        self.u2y = self.g2 * self.omega2[1] + np.sum(self.h2[:,:] * self.nuc_vecs_2[1,:,None],0)
+        self.u2z = self.g2 * self.omega2[2] + np.sum(self.h2[:,:] * self.nuc_vecs_2[2,:,None],0)
+        
+       # for i in range(0,self.h2_size):
+       #    self.u2x += self.h2[i,:] * self.nuc_vecs_2[0,i]
+       #     self.u2y += self.h2[i,:] * self.nuc_vecs_2[1,i]
+       #     self.u2z += self.h2[i,:] * self.nuc_vecs_2[2,i]
         
         self.elec_2 = self.elec
         
@@ -249,6 +326,31 @@ class rotational_relaxation:
             self.elec_2[i,1,:,:] = -0.5*((self.u2x[i] - 1.0j*self.u2y[i])*self.s2_z + (self.s2_x - 1.0j*self.s2_y)*self.u2z[i])
             #self.elec2_t_minus_2 
             self.elec_2[i,0,:,:]= 0.5 * (self.u2x[i] - 1.0j*self.u2y[i])*(self.s2_x - 1.0j*self.s2_y)
+        
+        
+        # Dipolar coupling
+        
+        self.dipolar_tensor_product = self.elec
+        self.ux = self.uq
+        self.uy = self.uq
+        self.uz = self.uq
+        
+        for i in range(0,5):
+            self.ux[i,:,:] = self.d_rank_2[i] * self.s1_x
+            self.uy[i,:,:] = self.d_rank_2[i] * self.s1_y
+            self.uz[i,:,:] = self.d_rank_2[i] * self.s1_z
+        
+        for i in range(0,5):
+            #self.dipolar_tensor_product_t_plus_2 
+            self.dipolar_tensor_product[i,4,:,:] = 0.5 * (self.ux[i,:,:] + 1.0j*self.uy[i,:,:])*(self.s2_x + 1.0j*self.s2_y)
+            #self.dipolar_tensor_product_t_plus_1 
+            self.dipolar_tensor_product[i,3,:,:] = 0.5*((self.ux[i,:,:] + 1.0j*self.uy[i,:,:])*self.s2_z + (self.s2_x + 1.0j*self.s2_y)*self.uz[i,:,:])
+            #self.dipolar_tensor_product_t_zero 
+            self.dipolar_tensor_product[i,2,:,:]= (-1.0/2*np.sqrt(6))*((self.ux[i,:,:] + 1.0j*self.uy[i,:,:])*(self.s2_x - 1.0j*self.s2_y) + (self.ux[i,:,:] - 1.0j*self.uy[i,:,:])*(self.s2_x + 1.0j*self.s2_y) + 4.0*self.s2_z*self.uz[i,:,:])
+            #self.dipolar_tensor_product_t_minus_1 
+            self.dipolar_tensor_product[i,1,:,:] = -0.5*((self.ux[i,:,:] - 1.0j*self.uy[i,:,:])*self.s2_z + (self.s2_x - 1.0j*self.s2_y)*self.uz[i,:,:])
+            #self.dipolar_tensor_product_t_minus_2 
+            self.dipolar_tensor_product[i,0,:,:]= 0.5 * (self.ux[i,:,:] - 1.0j*self.uy[i,:,:])*(self.s2_x - 1.0j*self.s2_y)
         
         return 
         
@@ -266,7 +368,7 @@ class rotational_relaxation:
             for j in range(0,5):
                 # Define qmn = mu_b*(g1_m*t1_n + g2_m*t2_n)
                 self.Bmn = self.B
-                self.qmn = self.elec_1[i,j,:,:]+self.elec_2[i,j,:,:]
+                self.qmn = self.elec_1[i,j,:,:]+self.elec_2[i,j,:,:]+self.dipolar_tensor_product[i,j,:,:]
                 self.amn = np.kron(self.qmn,self.iden4) - np.kron(self.iden4,np.transpose(self.qmn))
                 self.Bmn[:16,:16] = self.amn
                 self.Bmn[16:,16:] = self.amn
@@ -287,6 +389,8 @@ class rotational_relaxation:
         self.Hamiltonian_Matrix()
         self.liouville()
         self.rank_2_g_tensor()
+        self.rank_2_dipolar()
+        self.rank_2_hyperfine()
         self.rank_two_component()
         self.Redfield_Matrix()
       
@@ -309,8 +413,10 @@ dividor = 1.0/np.float(num_samples)
 aniso_g1 = np.ones((3,3))
 aniso_g2 = np.ones((3,3))
 
-hyperfine_1 = np.array([2.308839e+00, 9.037700e-01, -7.757500e-02, -3.404200e-02, 1.071863e+00, 2.588280e-01, 1.073569e+00, 2.598780e-01, -7.764800e-02, -3.420200e-02, 2.308288e+00, 9.022930e-01, -1.665630e-01, -1.665630e-01, -1.665630e-01, -1.664867e-01, -1.664867e-01, -1.664867e-01, 8.312600e-01])
-hyperfine_2 = np.array([-0.1927,-0.1927,-0.1927,-0.1927,-0.0963,-0.0963])
+aniso_hyperfine_1 = np.ones([19,3,3])
+aniso_hyperfine_2 = np.ones([6,3,3])
+
+aniso_dipolar = np.ones((3,3))
 
 spin_numbers_1 = np.array([0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.0])
 spin_numbers_2 = np.array([0.5,0.5,0.5,0.5,1.0,1.0])
@@ -330,7 +436,7 @@ exchange_rate = 1.0e0/(2.0e0*tau_c)
 samples = np.arange(1.0,np.float(num_samples))
 trip = np.zeros_like(samples)
 
-field = np.linspace(0.0,60.0,60)
+field = np.linspace(0.0,60.0,6)
 triplet_yield = np.zeros_like(field)          
 
 for index_field,item_field in enumerate(field):
@@ -342,7 +448,7 @@ for index_field,item_field in enumerate(field):
     for index, item in enumerate(samples):
 
         # Define class       
-        relaxation = rotational_relaxation(aniso_g1,aniso_g2,hyperfine_1,hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate)
+        relaxation = rotational_relaxation(aniso_dipolar,aniso_g1,aniso_g2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate)
         # Calculate triplet yield
         total_t += relaxation.triplet_yield()
         trip[index] = np.float(total_t)/np.float(item)
@@ -367,3 +473,6 @@ plt.plot(field,triplet_yield)
 plt.ylabel('Triplet Yield')
 plt.xlabel('field')
 plt.title('Anisotropic g tensor')
+
+np.savetxt('sw_rot_relax.txt',triplet_yield)
+np.savetxt('field_range.txt',field)
