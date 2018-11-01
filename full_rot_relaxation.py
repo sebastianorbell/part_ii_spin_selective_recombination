@@ -13,11 +13,12 @@ Created on Fri Oct 26 10:06:50 2018
 
 -- The time dependent anisotropic g tensor, dipolar coupling tensor and hyperfine tensors
      are treated using the Redfield model.
+--** 1 = DMJ
+__** 2 = NDI
 """
 
 import time
 import numpy as np
-import random
 import scipy.linalg as la
 import matplotlib.pyplot as plt
 from scipy.linalg import inv as inv
@@ -25,10 +26,12 @@ from scipy.linalg import inv as inv
 class rotational_relaxation:
     
 
-    def __init__(self,aniso_dipolar,aniso_g1,aniso_g2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate):
+    def __init__(self,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate):
         # declare constants and identities
-        self.d_perp = 1.0e1
-        self.d_parr = 1.0e1
+        self.d_perp = 1.38064852e-23*295.0/(8.0*np.pi*0.5812e-3*(13.5e-10*13.5e-10))
+        self.d_parr = 1.38064852e-23*295.0/(8.0*np.pi*0.5812e-3*(11.45e-10*11.45e-10))
+        
+        
         
         self.iden2 = np.eye(2)
         self.iden4 = np.eye(4)
@@ -78,28 +81,21 @@ class rotational_relaxation:
         self.aniso_g1 = aniso_g1
         self.aniso_g2 = aniso_g2
         self.g_mat = np.zeros([5],dtype = complex)
-        self.g1_iso = np.trace(self.aniso_g1)/3.0
-        self.g2_iso = np.trace(self.aniso_g2)/3.0
+        self.g1_iso = g1_iso
+        self.g2_iso = g2_iso
         
         self.hyperfine_1 = aniso_hyperfine_1
         self.h1_size = np.size(self.hyperfine_1[:,0,0])
         self.h1 = np.zeros([self.h1_size,5], dtype = complex)
-        self.iso_h1 = np.zeros((self.h1_size))
-        for i in range(0,self.h1_size):
-            self.iso_h1[i] = np.trace(self.hyperfine_1[i,:,:])
-        self.iso_h1 = self.iso_h1/3.0
+        self.iso_h1 = iso_h1
         
         self.hyperfine_2 = aniso_hyperfine_2
         self.h2_size = np.size(self.hyperfine_2[:,0,0])
         self.h2 = np.zeros([self.h2_size,5], dtype = complex)
-        self.iso_h2 = np.zeros((self.h2_size))
-        for i in range(0,self.h2_size):
-            self.iso_h2[i] = np.trace(self.hyperfine_2[i,:,:])
-        self.iso_h2 = self.iso_h2/3.0
+        self.iso_h2 = iso_h2
         
         self.dipolar = aniso_dipolar
         self.d_rank_2 = np.zeros([5],dtype = complex)
-        self.iso_dipolar = np.trace(self.dipolar)/3.0
         
         self.ks = ks
         self.kt = kt
@@ -181,8 +177,8 @@ class rotational_relaxation:
         self.hamiltonian = self.h0
         self.hamiltonian += np.kron(self.omegatot_1[0] * self.sx + self.omegatot_1[1] * self.sy + self.omegatot_1[2] * self.sz, self.iden2)
         self.hamiltonian += np.kron(self.iden2, self.omegatot_2[0] * self.sx + self.omegatot_2[1] * self.sy + self.omegatot_2[2] * self.sz)
-        self.hamiltonian_a = self.hamiltonian + (-2.0*(self.J_couple + self.del_J_couple)+self.iso_dipolar)*self.s1_s2
-        self.hamiltonian_b = self.hamiltonian + (-2.0*(self.J_couple - self.del_J_couple)+self.iso_dipolar)*self.s1_s2
+        self.hamiltonian_a = self.hamiltonian + (-2.0*(self.J_couple + self.del_J_couple))*self.s1_s2
+        self.hamiltonian_b = self.hamiltonian + (-2.0*(self.J_couple - self.del_J_couple))*self.s1_s2
                 
         return
    
@@ -395,7 +391,6 @@ class rotational_relaxation:
         self.Redfield_Matrix()
       
         trip_yield = np.matmul(self.pt_lou,np.matmul(inv(self.ltot+self.red),self.p0_lou))
-        #print(np.trace(self.red))
         return np.real(-self.kt*trip_yield)
     
 #-----------------------------------------------------------------
@@ -403,41 +398,109 @@ class rotational_relaxation:
 # -----------------------------------------------------------------
 # Main, units of mT
         
+def transform(N,T):
+    T_prime = np.matmul(np.transpose(N),np.matmul(T,N))
+    return T_prime
+        
+def array_construct(axx,ayy,azz,axy,axz,ayz):
+    A = np.array([[axx,axy,axz],[axy,ayy,ayz],[axz,ayz,azz]])
+    return A
 t0 = time.clock()
-random.seed()
+np.random.seed()
 
-num_samples = 500
-dividor = 1.0/np.float(num_samples)
-    
-# Define variables
-aniso_g1 = np.ones((3,3))
-aniso_g2 = np.ones((3,3))
+# Define variables, initial frame
+rad_fram_aniso_g1 = np.array([[0.0006,0.0,0.0],[0.0,0.0001,0.0],[0.0,0.0,-0.0009]])
+rad_fram_aniso_g2 = np.array([[0.0010,0.0,0.0],[0.0,0.0007,0.0],[0.0,0.0,-0.0020]])
 
-aniso_hyperfine_1 = np.ones([19,3,3])
-aniso_hyperfine_2 = np.ones([6,3,3])
+rad_fram_aniso_hyperfine_1 = np.zeros([19,3,3])
+rad_fram_aniso_hyperfine_1[0] = array_construct(0.018394,0.00575,-0.024144,0.119167,-0.090257,-0.105530)
+rad_fram_aniso_hyperfine_1[1] = array_construct(-0.030255,0.134767,-0.104512,0.111178,0.03952,0.065691)
+rad_fram_aniso_hyperfine_1[2] = array_construct(0.041327,-0.039294,0.002033,0.017961,0.78922,0.025615)
+rad_fram_aniso_hyperfine_1[3] = array_construct(0.065617,-0.016154,-0.049462,0.036655,0.014217,0.004047)
+rad_fram_aniso_hyperfine_1[4] = array_construct(0.069089,-0.054902,-0.014187,0.013749,-0.075976,-0.006477)
+rad_fram_aniso_hyperfine_1[5] = array_construct(0.098308,-0.041108,-0.0572,-0.024641,0.013959,0.002803)
+rad_fram_aniso_hyperfine_1[6] = array_construct(0.017844,0.006183,-0.024028,-00.119099,-0.090068,0.105661)
+rad_fram_aniso_hyperfine_1[7] = array_construct(-0.030775,0.135406,-0.104631,-0.110876,0.039322,-0.065607)
+rad_fram_aniso_hyperfine_1[8] = array_construct(0.041235,-0.039174,-0.002061,-0.018150,0.078901,-0.025838)
+rad_fram_aniso_hyperfine_1[9] = array_construct(0.065415,-0.015957,-0.049358,-0.036874,0.014222,-0.004080)
+rad_fram_aniso_hyperfine_1[10] = array_construct(0.069102,-0.054901,-0.014201,-0.014035,-0.075981,0.006618)
+rad_fram_aniso_hyperfine_1[11] = array_construct(0.098464,-0.041245,-0.0571219,0.024346,0.014054,-0.002814)
+rad_fram_aniso_hyperfine_1[12] = array_construct(0.036159,-0.00026,-0.035899,0.038259,-0.007026,-0.004047)
+rad_fram_aniso_hyperfine_1[13] = array_construct(0.036159,-0.00026,-0.035899,0.038259,-0.007026,-0.004047)
+rad_fram_aniso_hyperfine_1[14] = array_construct(0.036159,-0.00026,-0.035899,0.038259,-0.007026,-0.004047)
+rad_fram_aniso_hyperfine_1[15] = array_construct(0.035983,-0.000104,-0.035879,-0.038338,-0.007021,0.004066)
+rad_fram_aniso_hyperfine_1[16] = array_construct(0.035983,-0.000104,-0.035879,-0.038338,-0.007021,0.004066)
+rad_fram_aniso_hyperfine_1[17] = array_construct(0.035983,-0.000104,-0.035879,-0.038338,-0.007021,0.004066)
+rad_fram_aniso_hyperfine_1[18] = array_construct(-0.772676,-0.7811,1.553776,0.000000,-0.061480,0.000443)
 
-aniso_dipolar = np.ones((3,3))
 
-spin_numbers_1 = np.array([0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.0])
-spin_numbers_2 = np.array([0.5,0.5,0.5,0.5,1.0,1.0])
+rad_fram_aniso_hyperfine_2 = np.zeros([6,3,3])
+rad_fram_aniso_hyperfine_2[0] = array_construct(0.011586,0.032114,-0.0437,-0.101834,-0.000008,0.000014)
+rad_fram_aniso_hyperfine_2[1] = array_construct(0.011586,0.032114,-0.0437,-0.101834,0.000014,0.000008)
+rad_fram_aniso_hyperfine_2[2] = array_construct(0.011586,0.032114,-0.0437,-0.101834,0.000014,0.000008)
+rad_fram_aniso_hyperfine_2[3] = array_construct(0.011586,0.032114,-0.0437,-0.101834,-0.000008,0.000014)
+rad_fram_aniso_hyperfine_2[4] = array_construct(0.0352,0.034,-0.0692,0.0,0.0,0.0)
+rad_fram_aniso_hyperfine_2[5] = array_construct(0.0352,0.034,-0.0692,0.0,0.0,0.0)
+# Define transorm matrices
+N1 = np.array([[1.,0.,0.],[0.,0.,-1.],[0.,1.,0.]])
+
+theta_2 = 2.0
+N2 =  np.array([[0.,0.,1.0],[np.cos(theta_2),np.sin(theta_2),0.],[-np.sin(theta_2),np.cos(theta_2),0.0]])
+
+# Convert to molecular frame
+aniso_g1 = transform(N1,rad_fram_aniso_g1)
+aniso_g2 = transform(N2,rad_fram_aniso_g2)
+
+aniso_hyperfine_1 = transform(N1,rad_fram_aniso_hyperfine_1)
+aniso_hyperfine_2 = transform(N2,rad_fram_aniso_hyperfine_2)
+
+# free electron g factor = 2.00231930 (unitless)
+# bohr magnetron = 9.274009994e-24 JT^-1
+# permeability of free space =  1.25663706e-6 m kg s^-2 A^-2
+# radius (m)
+#cnst in mT^2
+
+# for n=1 
+radius = 16.5e-10 
+#radius_n2 = 20.9e-10
+ 
+cnst = 2.0*np.pi*1.760e-8*(-2.00231930*2.00231930*1.25663706e-6*9.274009994e-24*9.274009994e-24/(4.0*np.pi*radius))
+aniso_dipolar = np.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,-2.0]])*cnst
+
+
+# Isotropic components
+g1_iso = 2.0031
+g2_iso = 2.0040
+
+# ISO h1 for the anti conformation
+iso_h1 = np.array([[2.308839,0.903770,-0.034042,-0.077575,1.071863,0.258828,2.308288,0.0902293,-0.034202,0.077648,1.073569,0.259878,-0.166563,-0.166563,-0.166563,-0.166487,-0.166487,-0.166487,0.831260]])
+
+iso_h2 = np.array([[-0.1927,-0.1927,-0.1927,-0.1927,-0.0963,-0.0963]])
+
+
+spin_numbers_1 = np.array([[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.0]])
+spin_numbers_2 = np.array([[0.5,0.5,0.5,0.5,1.0,1.0]])
 
 omega1 = [0.0,0.0,0.0]
 omega2 = [0.0,0.0,0.0]
 
-J = 4.0
-dj = 3.0
+J = 85.0
+dj = J*2.0
 
-ks = 0.05649 
-kt = 0.6218966518 
+ks = 0.05649e2
+kt = 0.6218966518e2
 
-tau_c = 5.6818e-5
+tau_c = 1.9545e0
 exchange_rate = 1.0e0/(2.0e0*tau_c)
 
+num_samples = 2000
+dividor = 1.0/np.float(num_samples)
 samples = np.arange(1.0,np.float(num_samples))
 trip = np.zeros_like(samples)
 
-field = np.linspace(0.0,60.0,6)
-triplet_yield = np.zeros_like(field)          
+field = np.linspace(0.0,400.0,30)
+triplet_yield = np.zeros_like(field)     
+standard_error = np.zeros_like(field)     
 
 for index_field,item_field in enumerate(field):
     total_t = 0.0
@@ -448,13 +511,13 @@ for index_field,item_field in enumerate(field):
     for index, item in enumerate(samples):
 
         # Define class       
-        relaxation = rotational_relaxation(aniso_dipolar,aniso_g1,aniso_g2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate)
+        relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate)
         # Calculate triplet yield
         total_t += relaxation.triplet_yield()
-        trip[index] = np.float(total_t)/np.float(item)
+        trip[index] = relaxation.triplet_yield()
     
-    triplet_yield[index_field] = trip[num_samples-2]
-
+    triplet_yield[index_field] = total_t*dividor
+    standard_error[index_field] = np.sqrt(dividor*(np.sum((trip-triplet_yield[index_field])*(trip-triplet_yield[index_field])))/np.float(num_samples-1))
 
 print('----------------------------------')
 print('**********************************')
@@ -465,14 +528,22 @@ print('tau',tau_c)
 print('**********************************')
 print('----------------------------------')
 
-plt.plot(samples,trip)
-plt.show()
-plt.clf()
 
-plt.plot(field,triplet_yield)
+#plt.plot(samples,trip)
+#plt.show()
+#plt.clf()
+
+# Visualize the result
+plt.plot(field,triplet_yield,'o')
+plt.plot(field,triplet_yield, '-', color='gray')
+
+plt.fill_between(field, triplet_yield - 2.0*standard_error, triplet_yield + 2.0*standard_error,
+                 color='gray', alpha=0.2)
+
 plt.ylabel('Triplet Yield')
 plt.xlabel('field')
-plt.title('Anisotropic g tensor')
+plt.title('Rotational Relaxation')
 
 np.savetxt('sw_rot_relax.txt',triplet_yield)
-np.savetxt('field_range.txt',field)
+np.savetxt('rot_stnd_err',standard_error)
+np.savetxt('field.txt',field)
