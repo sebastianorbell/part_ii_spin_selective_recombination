@@ -27,7 +27,7 @@ plt.fill_between(field, (rot_relax - 2.0*error)/rot_relax[0], (rot_relax + 2.0*e
 
 plt.title('Schulten Wolynes')
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=2,
-           ncol=2, mode="expand", borderaxespad=0.)
+           ncol=2, mode="expand", borderaxespad=-1.0)
 plt.ylabel('Relative Triplet Yield')
 plt.xlabel('field mT')
 #plt.ylim(0.0,0.15)

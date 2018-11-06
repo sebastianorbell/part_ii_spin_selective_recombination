@@ -24,6 +24,7 @@ import numpy as np
 import scipy.linalg as la
 import matplotlib.pyplot as plt
 from scipy.linalg import inv as inv
+import scipy.stats as sts
 
 class rotational_relaxation:
     
@@ -494,7 +495,7 @@ kt = 0.6218966518e2
 tau_c = 1.9545e0
 exchange_rate = 1.0e0/(2.0e0*tau_c)
 
-num_samples = 5
+num_samples = 10
 dividor = 1.0/np.float(num_samples)
 samples = np.arange(1.0,np.float(num_samples))
 trip = np.zeros_like(samples)
@@ -518,8 +519,8 @@ for index_field,item_field in enumerate(field):
         trip[index] = relaxation.triplet_yield()
     
     triplet_yield[index_field] = total_t*dividor
-    standard_error[index_field] = np.sqrt(dividor*(np.sum((trip-triplet_yield[index_field])*(trip-triplet_yield[index_field])))/np.float(num_samples-1))
-
+    #standard_error[index_field] = np.sqrt(dividor*(np.sum((trip-triplet_yield[index_field])*(trip-triplet_yield[index_field])))/np.float(num_samples-1))
+    standard_error[index_field] = sts.sem(trip)
 
 print('----------------------------------')
 print('**********************************')

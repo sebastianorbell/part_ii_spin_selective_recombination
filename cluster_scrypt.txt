@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Oct 26 10:06:50 2018
+Created on Mon Nov  5 15:04:50 2018
 
 @author: sebastianorbell
 """
@@ -25,11 +25,12 @@ import scipy.linalg as la
 import matplotlib.pyplot as plt
 from scipy.linalg import inv as inv
 from scipy.optimize import minimize
+import scipy.stats as sts
 
 class rotational_relaxation:
     
 
-    def __init__(self,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate):
+    def __init__(self,lamb,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate):
         # declare constants and identities
         self.d_perp = 1.38064852e-23*295.0/(8.0*np.pi*0.5812e-3*(13.5e-10*13.5e-10))
         self.d_parr = 1.38064852e-23*295.0/(8.0*np.pi*0.5812e-3*(11.45e-10*11.45e-10))
@@ -61,7 +62,7 @@ class rotational_relaxation:
         self.p0_lou = np.zeros([32,1],dtype = complex)
         self.pt_lou = np.zeros([1,32],dtype = complex)
         
-        self.lamb = 0.05
+        self.lamb = lamb
         
         self.p0_lou[:16,:] = 0.25 * ((1.0-self.lamb)*np.reshape(self.pro_sing,(16,1))+(self.lamb/3.0)*np.reshape(self.pro_trip,(16,1))) 
         self.p0_lou[16:,:] = 0.25 * ((1.0-self.lamb)*np.reshape(self.pro_sing,(16,1))+(self.lamb/3.0)*np.reshape(self.pro_trip,(16,1)))  
@@ -468,7 +469,7 @@ def calc_yield(tau_c,dj):
     
     # for n=1 
     radius = 16.5e-10 
-    #radius_n2 = 20.9e-10
+    
     
     cnst = 2.0*np.pi*1.760e-8*(-2.00231930*2.00231930*1.25663706e-6*9.274009994e-24*9.274009994e-24/(4.0*np.pi*radius))
     aniso_dipolar = np.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,-2.0]])*cnst
@@ -488,19 +489,20 @@ def calc_yield(tau_c,dj):
     spin_numbers_2 = np.array([[0.5,0.5,0.5,0.5,1.0,1.0]])
     
     
-    J = 22.64
-    
-    ks = 1.36566
-    kt = 0.811626
+    J = 2.39894321e+01
+    lamb = 2.51128743e-02
+    ks = 3.10266111e+00
+    kt = 3.25806466e+00
 
-    t_303 = np.loadtxt('t_303.txt',delimiter=',')
-    field = np.reshape(t_303[:,0],(len(t_303[:,0])))
-    data_y = np.reshape(t_303[:,1],(len(t_303[:,1])))
+    t_313 = np.loadtxt('t_313.txt',delimiter=',')
+    field = np.reshape(t_313[:,0],(len(t_313[:,0])))
+    data_y = np.reshape(t_313[:,1],(len(t_313[:,1])))
     triplet_yield = np.zeros_like(field)
     
     exchange_rate = 1.0e0/(2.0e0*tau_c)
     
-    num_samples = 100
+    num_samples = 5000
+    dividor = 1.0/np.float(num_samples)
     samples = np.arange(1.0,np.float(num_samples))
          
     
@@ -510,36 +512,41 @@ def calc_yield(tau_c,dj):
         for index, item in enumerate(samples):
             #np.random.seed(index)
             # Define class       
-            relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,dj,ks,kt,exchange_rate)
+            relaxation = rotational_relaxation(lamb,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,dj,ks,kt,exchange_rate)
             # Calculate triplet yield
             total_t += relaxation.triplet_yield()
         
-        triplet_yield[index_field] = total_t
+        triplet_yield[index_field] = dividor*total_t
+        standard_error[index_field] = sts.sem(trip)
         
-        
-    triplet_yield = triplet_yield/(triplet_yield[0])
-    val = np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0)))
+    val = np.sum(((triplet_yield/triplet_yield[0])-(data_y-data_y[0]+1.0))*((triplet_yield/triplet_yield[0])-(data_y-data_y[0]+1.0)))
     
+    np.savetxt('fitted_trip_yield.txt',triplet_yield)
+    np.savetxt('experimental_field',field)
+    np.savetxt('fitted_std_error',standard_error)
     
-    plt.plot(field,triplet_yield,'o-')
-    plt.plot(field,(data_y-data_y[0]+1.0),'o')
+    plt.clf()
+    plt.plot(field,triplet_yield/triplet_yield[0],'o-', label = 'Parameter fitted curve')
+    plt.plot(field,(data_y-data_y[0]+1.0),'o',label = 'Experimental data')
+    plt.fill_between(field, (triplet_yield - 2.0*standard_error)/triplet_yield[0], (triplet_yield + 2.0*standard_error)/triplet_yield[0],
+                 color='seagreen', alpha=0.3)
     plt.ylabel('Triplet Yield')
     plt.title('Rotational Relaxation')
     plt.xlabel('field')
+    plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=2,
+           ncol=2, mode="expand", borderaxespad=-1.0)
+    plt.savefig("fitted_curve.pdf")
     plt.show()
-    plt.clf()
 
-    print(val,'_____', tau_c,'_____', dj,'_____',ks,'_____',kt,'_____',J)       
+    print(val,'_____', tau_c,'_____', dj)       
     return val
 
 t0 = time.clock()
 np.random.seed()
 
 bnds = ((1e-16, None), (1e-16, None))
-x0 = [0.03665841, 6.88034966]
-print(minimize(lambda x: calc_yield(*x),x0,bounds=bnds))
-
-#print(calc_yield(5.47e-5,1.9545))
+x0 = [1.34797931e-03, 3.89764138e+01]
+res = (minimize(lambda x: calc_yield(*x),x0,bounds=bnds))
 
 print('----------------------------------')
 print('**********************************')
@@ -547,3 +554,4 @@ print(time.clock() - t0)
 print('**********************************')
 print('----------------------------------')
 
+calc_yield(res.x[0],res.x[1])
