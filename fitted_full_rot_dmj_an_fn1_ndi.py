@@ -413,6 +413,48 @@ def array_construct(axx,ayy,azz,axy,axz,ayz):
     A = np.array([[axx,axy,axz],[axy,ayy,ayz],[axz,ayz,azz]])
     return A
 
+
+def inertia_tensor(data):
+    
+    c_of_m = np.zeros(3)
+    total_m = 0.0
+    
+    for i in range(0,len(data[:,0])):
+        total_m += data[i,0]
+        c_of_m +=data[i,1:4]
+        
+    c_of_m = c_of_m/total_m
+    # Convert coordinates such that they are centred at the centre of mass
+    com_dat = np.zeros_like(data)
+    
+    com_dat[:,0] = data[:,0]
+    com_dat[:,1:4] = data[:,1:4]-c_of_m
+    
+    inertia = np.zeros([3,3])
+    
+    
+    for i in range(0,len(com_dat[:,0])):
+        inertia[0,0] += com_dat[i,0]*(com_dat[i,2]*com_dat[i,2]+com_dat[i,3]*com_dat[i,3])
+        inertia[1,1] += com_dat[i,0]*(com_dat[i,1]*com_dat[i,1]+com_dat[i,3]*com_dat[i,3])
+        inertia[2,2] += com_dat[i,0]*(com_dat[i,1]*com_dat[i,1]+com_dat[i,2]*com_dat[i,2])
+        
+        inertia[0,1] +=com_dat[i,0]*(com_dat[i,1]*com_dat[i,2])
+        inertia[1,0] +=com_dat[i,0]*(com_dat[i,1]*com_dat[i,2])
+        
+        inertia[0,2] +=com_dat[i,0]*(com_dat[i,1]*com_dat[i,3])
+        inertia[2,0] +=com_dat[i,0]*(com_dat[i,1]*com_dat[i,3])
+        
+        inertia[2,1] +=com_dat[i,0]*(com_dat[i,3]*com_dat[i,2])
+        inertia[1,2] +=com_dat[i,0]*(com_dat[i,3]*com_dat[i,2])
+        
+        
+    val, vec = la.eig(inertia)
+
+    return vec
+
+def rad_tensor_mol_axis(transform_mol,transform_dmj,tensor):
+    return transform(transform_mol,(transform(inv(transform_dmj),tensor)))
+
 def calc_yield(tau_c,dj,ks):
 
 
@@ -441,7 +483,6 @@ def calc_yield(tau_c,dj,ks):
     rad_fram_aniso_hyperfine_1[17] = array_construct(0.035983,-0.000104,-0.035879,-0.038338,-0.007021,0.004066)
     rad_fram_aniso_hyperfine_1[18] = array_construct(-0.772676,-0.7811,1.553776,0.000000,-0.061480,0.000443)
 
-
     rad_fram_aniso_hyperfine_2 = np.zeros([6,3,3])
     rad_fram_aniso_hyperfine_2[0] = array_construct(0.011586,0.032114,-0.0437,-0.101834,-0.000008,0.000014)
     rad_fram_aniso_hyperfine_2[1] = array_construct(0.011586,0.032114,-0.0437,-0.101834,0.000014,0.000008)
@@ -449,24 +490,24 @@ def calc_yield(tau_c,dj,ks):
     rad_fram_aniso_hyperfine_2[3] = array_construct(0.011586,0.032114,-0.0437,-0.101834,-0.000008,0.000014)
     rad_fram_aniso_hyperfine_2[4] = array_construct(0.0352,0.034,-0.0692,0.0,0.0,0.0)
     rad_fram_aniso_hyperfine_2[5] = array_construct(0.0352,0.034,-0.0692,0.0,0.0,0.0)
-    # Define transorm matrices
-    N1 = np.array([[1.,0.,0.],[0.,0.,-1.],[0.,1.,0.]])
-    
-    theta_2 = 2.0
-    N2 =  np.array([[0.,0.,1.0],[np.cos(theta_2),np.sin(theta_2),0.],[-np.sin(theta_2),np.cos(theta_2),0.0]])
 
+    # axis frames
+    data_xyz = np.loadtxt('dmj-an-fn1-ndi-opt.txt',delimiter=',')
+    transform_mol = inertia_tensor(data_xyz)
+    
+    dmj_xyz = np.loadtxt('dmj_in_fn1.txt',delimiter=',')
+    transform_dmj = inertia_tensor(dmj_xyz)
+    
+    ndi_xyz = np.loadtxt('NDI_in_fn1.txt',delimiter=',')
+    transform_ndi = inertia_tensor(ndi_xyz)
+    
     # Convert to molecular frame
-    aniso_g1 = transform(N1,rad_fram_aniso_g1)
-    aniso_g2 = transform(N2,rad_fram_aniso_g2)
+    aniso_g1 = rad_tensor_mol_axis(transform_mol,transform_dmj,rad_fram_aniso_g1)
+    aniso_g2 = rad_tensor_mol_axis(transform_mol,transform_ndi,rad_fram_aniso_g2)
+
+    aniso_hyperfine_1 = rad_tensor_mol_axis(transform_mol,transform_dmj,rad_fram_aniso_hyperfine_1)
+    aniso_hyperfine_2 = rad_tensor_mol_axis(transform_mol,transform_ndi,rad_fram_aniso_hyperfine_2)
     
-    aniso_hyperfine_1 = transform(N1,rad_fram_aniso_hyperfine_1)
-    aniso_hyperfine_2 = transform(N2,rad_fram_aniso_hyperfine_2)
-    
-    # free electron g factor = 2.00231930 (unitless)
-    # bohr magnetron = 9.274009994e-24 JT^-1
-    # permeability of free space =  1.25663706e-6 m kg s^-2 A^-2
-    # radius (m)
-    #cnst in mT^2
     
     # for n=1 
     radius = 16.5e-10 
@@ -474,7 +515,6 @@ def calc_yield(tau_c,dj,ks):
     
     cnst = 2.0*np.pi*1.760e-8*(-2.00231930*2.00231930*1.25663706e-6*9.274009994e-24*9.274009994e-24/(4.0*np.pi*radius))
     aniso_dipolar = np.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,-2.0]])*cnst
-    
     
     # Isotropic components
     g1_iso = 2.0031

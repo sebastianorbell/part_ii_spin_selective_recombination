@@ -1,24 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Oct 26 10:06:50 2018
+Created on Mon Nov 19 09:48:00 2018
 
 @author: sebastianorbell
-"""
 
-""" 
--- Rotational relaxation model using the Schulten Wolynes approximation
+Script for dmj-pe1p-ndi
 
--- The two site, J modulation, exchange is modelled using an exact quantum approach.
-
--- The time dependent anisotropic g tensor, dipolar coupling tensor and hyperfine tensors
-     are treated using the Redfield model.
---** 1 = DMJ
-__** 2 = NDI
-
-The plot is fitted to experimental data, 
-by minimising the sum of the square differences between points, 
-by optimising the parameters tau_c and dj
 """
 
 import time
@@ -27,14 +15,28 @@ import scipy.linalg as la
 import matplotlib.pyplot as plt
 from scipy.linalg import inv as inv
 from scipy.optimize import minimize
+import scipy.stats as sts
 
 class rotational_relaxation:
     
 
-    def __init__(self,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate):
+    def __init__(self,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
         # declare constants and identities
-        self.d_perp = 1.38064852e-23*295.0/(8.0*np.pi*0.5812e-3*(13.5e-10*13.5e-10))
-        self.d_parr = 1.38064852e-23*295.0/(8.0*np.pi*0.5812e-3*(11.45e-10*11.45e-10))
+        self.r_perp = 16.65552296e-10       
+        self.r_parr = 8.130217003e-10
+        
+        self.prefact = 3.92904692e-03
+        self.beta = 9.96973104e+01
+        self.c = -4.92846450e-03
+        
+        #self.visc = 1.0e-3*(-0.00625*temp+2.425)
+        self.visc = self.prefact*np.exp(self.beta/temp)+self.c
+        
+        
+        self.convert = 1.0e3/1.76e-11
+
+        self.d_perp = self.convert*1.38064852e-23*temp/(8.0*np.pi*self.visc*(self.r_perp**3))
+        self.d_parr = self.convert*1.38064852e-23*temp/(8.0*np.pi*self.visc*(self.r_parr**3))
         
         
         
@@ -62,14 +64,19 @@ class rotational_relaxation:
         # Declare Liouvillian density operators
         self.p0_lou = np.zeros([32,1],dtype = complex)
         self.pt_lou = np.zeros([1,32],dtype = complex)
+        self.ps_lou = np.zeros([1,32],dtype = complex)
         
-        self.lamb = 0.05
+        self.lamb = lamb
         
-        self.p0_lou[:16,:] = 0.25 * ((1.0-self.lamb)*np.reshape(self.pro_sing,(16,1))+(self.lamb/3.0)*np.reshape(self.pro_trip,(16,1))) 
-        self.p0_lou[16:,:] = 0.25 * ((1.0-self.lamb)*np.reshape(self.pro_sing,(16,1))+(self.lamb/3.0)*np.reshape(self.pro_trip,(16,1)))  
+        self.p0_lou[:16,:] = 0.5 * ((1.0-self.lamb)*np.reshape(self.pro_sing,(16,1))+(self.lamb/3.0)*np.reshape(self.pro_trip,(16,1))) 
+        self.p0_lou[16:,:] = 0.5 * ((1.0-self.lamb)*np.reshape(self.pro_sing,(16,1))+(self.lamb/3.0)*np.reshape(self.pro_trip,(16,1)))  
         
         self.pt_lou[:,:16] = np.reshape(self.pro_trip,(1,16)) 
         self.pt_lou[:,16:] = np.reshape(self.pro_trip,(1,16))
+        
+        self.ps_lou[:,:16] = np.reshape(self.pro_sing,(1,16)) 
+        self.ps_lou[:,16:] = np.reshape(self.pro_sing,(1,16))
+
         
         #Declare Hamiltonian and Louivillian
         self.ltot = np.zeros([32,32], dtype = complex)
@@ -196,7 +203,6 @@ class rotational_relaxation:
         self.ltot[16:,:16] = self.exchange_rate * self.iden16
         self.ltot[16:,16:] = la.kron((-1j*self.hamiltonian_b-self.haberkorn),self.iden4) + la.kron(self.iden4,np.transpose(+1j*self.hamiltonian_b-self.haberkorn)) - self.exchange_rate*self.iden16
         
-        self.linv = inv(self.ltot)
         
         return
     
@@ -210,7 +216,7 @@ class rotational_relaxation:
         #self.g1_plus_1 
         self.g1[3] = -0.5*(self.aniso_g1[0,2]+self.aniso_g1[2,0]-1.0j*(self.aniso_g1[1,2]+self.aniso_g1[2,1]))
         #self.g1_zero 
-        self.g1[2] = (1/np.sqrt(6))*(2*self.aniso_g1[2,2]-(self.aniso_g1[0,0]+self.aniso_g1[1,1]))
+        self.g1[2] = (1.0/np.sqrt(6.0))*(2.0*self.aniso_g1[2,2]-(self.aniso_g1[0,0]+self.aniso_g1[1,1]))
         #self.g1_minus_1 
         self.g1[1] = 0.5*(self.aniso_g1[0,2]+self.aniso_g1[2,0]+1.0j*(self.aniso_g1[1,2]+self.aniso_g1[2,1]))
         #self.g1_minus_2 
@@ -223,7 +229,7 @@ class rotational_relaxation:
         #self.g2_plus_1 
         self.g2[3] = -0.5*(self.aniso_g2[0,2]+self.aniso_g2[2,0]-1.0j*(self.aniso_g2[1,2]+self.aniso_g2[2,1]))
         #self.g2_zero 
-        self.g2[2] = (1/np.sqrt(6))*(2*self.aniso_g2[2,2]-(self.aniso_g2[0,0]+self.aniso_g2[1,1]))
+        self.g2[2] = (1.0/np.sqrt(6.0))*(2.0*self.aniso_g2[2,2]-(self.aniso_g2[0,0]+self.aniso_g2[1,1]))
         #self.g2_minus_1 
         self.g2[1] = 0.5*(self.aniso_g2[0,2]+self.aniso_g2[2,0]+1.0j*(self.aniso_g2[1,2]+self.aniso_g2[2,1]))
         #self.g2_minus_2 
@@ -240,7 +246,7 @@ class rotational_relaxation:
         #self.h1_plus_1 
         self.h1[:,3] = -0.5*(self.hyperfine_1[:,0,2]+self.hyperfine_1[:,2,0]-1.0j*(self.hyperfine_1[:,1,2]+self.hyperfine_1[:,2,1]))
         #self.h1_zero 
-        self.h1[:,2] = (1/np.sqrt(6))*(2*self.hyperfine_1[:,2,2]-(self.hyperfine_1[:,0,0]+self.hyperfine_1[:,1,1]))
+        self.h1[:,2] = (1.0/np.sqrt(6.0))*(2.0*self.hyperfine_1[:,2,2]-(self.hyperfine_1[:,0,0]+self.hyperfine_1[:,1,1]))
         #self.h1_minus_1 
         self.h1[:,1] = 0.5*(self.hyperfine_1[:,0,2]+self.hyperfine_1[:,2,0]+1.0j*(self.hyperfine_1[:,1,2]+self.hyperfine_1[:,2,1]))
         #self.h1_minus_2 
@@ -252,7 +258,7 @@ class rotational_relaxation:
         #self.h2_plus_1 
         self.h2[:,3] = -0.5*(self.hyperfine_2[:,0,2]+self.hyperfine_2[:,2,0]-1.0j*(self.hyperfine_2[:,1,2]+self.hyperfine_2[:,2,1]))
         #self.h2_zero 
-        self.h2[:,2] = (1/np.sqrt(6))*(2*self.hyperfine_2[:,2,2]-(self.hyperfine_2[:,0,0]+self.hyperfine_2[:,1,1]))
+        self.h2[:,2] = (1/np.sqrt(6.0))*(2*self.hyperfine_2[:,2,2]-(self.hyperfine_2[:,0,0]+self.hyperfine_2[:,1,1]))
         #self.h2_minus_1 
         self.h2[:,1] = 0.5*(self.hyperfine_2[:,0,2]+self.hyperfine_2[:,2,0]+1.0j*(self.hyperfine_2[:,1,2]+self.hyperfine_2[:,2,1]))
         #self.h2_minus_2 
@@ -269,7 +275,7 @@ class rotational_relaxation:
         #self.d_rank_2_plus_1 
         self.d_rank_2[3] = -0.5*(self.dipolar[0,2]+self.dipolar[2,0]-1.0j*(self.dipolar[1,2]+self.dipolar[2,1]))
         #self.d_rank_2_zero 
-        self.d_rank_2[2] = (1/np.sqrt(6))*(2*self.dipolar[2,2]-(self.dipolar[0,0]+self.dipolar[1,1]))
+        self.d_rank_2[2] = (1.0/np.sqrt(6.0))*(2.0*self.dipolar[2,2]-(self.dipolar[0,0]+self.dipolar[1,1]))
         #self.d_rank_2_minus_1 
         self.d_rank_2[1] = 0.5*(self.dipolar[0,2]+self.dipolar[2,0]+1.0j*(self.dipolar[1,2]+self.dipolar[2,1]))
         #self.d_rank_2_minus_2 
@@ -287,7 +293,7 @@ class rotational_relaxation:
         self.u1z = self.g1 * self.omega1[2] + np.sum(self.h1[:,:] * self.nuc_vecs_1[2,:,None],0)
         
         # for i in range(0,self.h1_size):
-        #   self.u1x += self.h1[i,:] * self.nuc_vecs_1[0,i]
+        #    self.u1x += self.h1[i,:] * self.nuc_vecs_1[0,i]
         #    self.u1y += self.h1[i,:] * self.nuc_vecs_1[1,i]
         #    self.u1z += self.h1[i,:] * self.nuc_vecs_1[2,i]
         
@@ -384,6 +390,21 @@ class rotational_relaxation:
         
         return
     
+    def lifetime(self):
+        lifetime = 0.0
+        self.sample_angles()
+        self.Vectors()
+        self.Tot_zeeman_field()
+        self.Hamiltonian_Matrix()
+        self.liouville()
+        self.rank_2_g_tensor()
+        self.rank_2_dipolar()
+        self.rank_2_hyperfine()
+        self.rank_two_component()
+        self.Redfield_Matrix()
+        lifetime = np.matmul((self.pt_lou+self.ps_lou),np.matmul(inv(self.ltot+self.red),self.p0_lou))
+        return np.real(-lifetime)
+    
     def triplet_yield(self):
         trip_yield = 0.0
         self.sample_angles()
@@ -413,7 +434,51 @@ def array_construct(axx,ayy,azz,axy,axz,ayz):
     A = np.array([[axx,axy,axz],[axy,ayy,ayz],[axz,ayz,azz]])
     return A
 
-def calc_yield(tau_c,dj,ks):
+
+def inertia_tensor(data):
+    
+    c_of_m = np.zeros(3)
+    total_m = 0.0
+    
+    for i in range(0,len(data[:,0])):
+        total_m += data[i,0]
+        c_of_m +=data[i,1:4]*data[i,0]
+        
+    c_of_m = c_of_m/total_m
+    # Convert coordinates such that they are centred at the centre of mass
+    com_dat = np.zeros_like(data)
+    
+    com_dat[:,0] = data[:,0]
+    com_dat[:,1:4] = data[:,1:4]-c_of_m
+    
+    inertia = np.zeros([3,3])
+    
+    
+    for i in range(0,len(com_dat[:,0])):
+        inertia[0,0] += com_dat[i,0]*(com_dat[i,2]*com_dat[i,2]+com_dat[i,3]*com_dat[i,3])
+        inertia[1,1] += com_dat[i,0]*(com_dat[i,1]*com_dat[i,1]+com_dat[i,3]*com_dat[i,3])
+        inertia[2,2] += com_dat[i,0]*(com_dat[i,1]*com_dat[i,1]+com_dat[i,2]*com_dat[i,2])
+        
+        inertia[0,1] += -com_dat[i,0]*(com_dat[i,1]*com_dat[i,2])
+        inertia[1,0] += -com_dat[i,0]*(com_dat[i,1]*com_dat[i,2])
+        
+        inertia[0,2] += -com_dat[i,0]*(com_dat[i,1]*com_dat[i,3])
+        inertia[2,0] += -com_dat[i,0]*(com_dat[i,1]*com_dat[i,3])
+        
+        inertia[2,1] += -com_dat[i,0]*(com_dat[i,3]*com_dat[i,2])
+        inertia[1,2] += -com_dat[i,0]*(com_dat[i,3]*com_dat[i,2])
+        
+        
+    val, vec = la.eig(inertia)
+    a = np.copy(vec[:,0])
+    vec[:,0] = vec[:,2]
+    vec[:,2] = a
+    return vec
+
+def rad_tensor_mol_axis(transform_mol,transform_dmj,tensor):
+    return transform(transform_mol,(transform(inv(transform_dmj),tensor)))
+
+def calc_yield(tau_c,y,lamb,ks,kt,temp,temp_dat,lifetime_exp, J):
 
 
     # Define variables, initial frame
@@ -441,7 +506,6 @@ def calc_yield(tau_c,dj,ks):
     rad_fram_aniso_hyperfine_1[17] = array_construct(0.035983,-0.000104,-0.035879,-0.038338,-0.007021,0.004066)
     rad_fram_aniso_hyperfine_1[18] = array_construct(-0.772676,-0.7811,1.553776,0.000000,-0.061480,0.000443)
 
-
     rad_fram_aniso_hyperfine_2 = np.zeros([6,3,3])
     rad_fram_aniso_hyperfine_2[0] = array_construct(0.011586,0.032114,-0.0437,-0.101834,-0.000008,0.000014)
     rad_fram_aniso_hyperfine_2[1] = array_construct(0.011586,0.032114,-0.0437,-0.101834,0.000014,0.000008)
@@ -449,32 +513,30 @@ def calc_yield(tau_c,dj,ks):
     rad_fram_aniso_hyperfine_2[3] = array_construct(0.011586,0.032114,-0.0437,-0.101834,-0.000008,0.000014)
     rad_fram_aniso_hyperfine_2[4] = array_construct(0.0352,0.034,-0.0692,0.0,0.0,0.0)
     rad_fram_aniso_hyperfine_2[5] = array_construct(0.0352,0.034,-0.0692,0.0,0.0,0.0)
-    # Define transorm matrices
-    N1 = np.array([[1.,0.,0.],[0.,0.,-1.],[0.,1.,0.]])
-    
-    theta_2 = 2.0
-    N2 =  np.array([[0.,0.,1.0],[np.cos(theta_2),np.sin(theta_2),0.],[-np.sin(theta_2),np.cos(theta_2),0.0]])
 
+    # axis frames
+    data_xyz = np.loadtxt('dmj-an-pe1p-ndi-opt.txt',delimiter=',')
+    transform_mol = inertia_tensor(data_xyz)
+    
+    dmj_xyz = np.loadtxt('dmj_in_pe1p.txt',delimiter=',')
+    transform_dmj = inertia_tensor(dmj_xyz)
+    
+    ndi_xyz = np.loadtxt('NDI_in_pe1p.txt',delimiter=',')
+    transform_ndi = inertia_tensor(ndi_xyz)
+    
     # Convert to molecular frame
-    aniso_g1 = transform(N1,rad_fram_aniso_g1)
-    aniso_g2 = transform(N2,rad_fram_aniso_g2)
+    aniso_g1 = rad_tensor_mol_axis(transform_mol,transform_dmj,rad_fram_aniso_g1)
+    aniso_g2 = rad_tensor_mol_axis(transform_mol,transform_ndi,rad_fram_aniso_g2)
+
+    aniso_hyperfine_1 = rad_tensor_mol_axis(transform_mol,transform_dmj,rad_fram_aniso_hyperfine_1)
+    aniso_hyperfine_2 = rad_tensor_mol_axis(transform_mol,transform_ndi,rad_fram_aniso_hyperfine_2)
     
-    aniso_hyperfine_1 = transform(N1,rad_fram_aniso_hyperfine_1)
-    aniso_hyperfine_2 = transform(N2,rad_fram_aniso_hyperfine_2)
-    
-    # free electron g factor = 2.00231930 (unitless)
-    # bohr magnetron = 9.274009994e-24 JT^-1
-    # permeability of free space =  1.25663706e-6 m kg s^-2 A^-2
-    # radius (m)
-    #cnst in mT^2
     
     # for n=1 
-    radius = 16.5e-10 
-    #radius_n2 = 20.9e-10
+    radius = 24.044e-10
     
-    cnst = 2.0*np.pi*1.760e-8*(-2.00231930*2.00231930*1.25663706e-6*9.274009994e-24*9.274009994e-24/(4.0*np.pi*radius))
+    cnst = (1.0e3*1.25663706e-6*1.054e-34*1.766086e11)/(4.0*np.pi*radius**3)
     aniso_dipolar = np.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,-2.0]])*cnst
-    
     
     # Isotropic components
     g1_iso = 2.0031
@@ -491,66 +553,172 @@ def calc_yield(tau_c,dj,ks):
     
     #tau_c = 0.03665841
     #dj = 6.88034966
-    J = 22.64
+    #J = 7.85
+    #lamb = 1.66422831e-02
     
-    # lifetime = (quant_yield_t/kt) + (quant_yield_s/ks)
-    phi_t = 1.0
-    phi_s = 1.0
-    lifetime = 2.0/3.0
-    
-    kt = (phi_t*ks)/(lifetime*ks-phi_s)
+    dj = np.sqrt(y/tau_c)
 
-    t_303 = np.loadtxt('t_303.txt',delimiter=',')
-    field = np.reshape(t_303[:,0],(len(t_303[:,0])))
-    data_y = np.reshape(t_303[:,1],(len(t_303[:,1])))
+    field = np.reshape(temp_dat[:,0],(len(temp_dat[:,0])))
+    data_y = np.reshape(temp_dat[:,1],(len(temp_dat[:,1])))
     triplet_yield = np.zeros_like(field)
+    standard_error = np.zeros_like(field)     
     
     exchange_rate = 1.0e0/(2.0e0*tau_c)
     
     num_samples = 3
     samples = np.arange(1.0,np.float(num_samples))
-         
-    
+    trip = np.zeros_like(samples)
 
+    lifetime = 0.0
+    # zero field lifetime
+    for index, item in enumerate(samples):
+            np.random.seed(index)
+            relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,0.0,J,dj,ks,kt,exchange_rate,lamb,temp)
+            lifetime += relaxation_0.lifetime()
+    lifetime = lifetime/np.float(num_samples)
+    print('lifetime',lifetime)
+    
     for index_field,item_field in enumerate(field):
-        total_t = 0.0    
+        total_t = 0.0
         for index, item in enumerate(samples):
             np.random.seed(index)
             # Define class       
-            relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,dj,ks,kt,exchange_rate)
+            relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,dj,ks,kt,exchange_rate,lamb,temp)
             # Calculate triplet yield
-            total_t += relaxation.triplet_yield()
-        
+            trip[index] = relaxation.triplet_yield()
+            total_t += trip[index]
+            
         triplet_yield[index_field] = total_t
-        
-        
+        standard_error[index_field] = sts.sem(trip)
+    
+    standard_error = standard_error/(triplet_yield[0])
     triplet_yield = triplet_yield/(triplet_yield[0])
-    val = np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0)))
     
+    lifetime_dif = lifetime - lifetime_exp
+    w1 = 10.0/lifetime_exp
+    w2 = 10.0/lifetime_exp
     
-    plt.plot(field,triplet_yield,'o-')
-    plt.plot(field,(data_y-data_y[0]+1.0),'o')
-    plt.ylabel('Triplet Yield')
-    plt.title('Rotational Relaxation')
-    plt.xlabel('field')
-    plt.show()
+    # lagrange type terms to ensure that the experimental lifetime is correctly calculated and that Kt is greater than Ks
+    val = np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0))) + (lifetime_dif*w1)**2 + (lifetime_dif*w2)**4
+    
     plt.clf()
-
-    print(val,'_____', tau_c,'_____', dj,'_____',ks,'_____',kt)       
+    plt.plot(field,triplet_yield,'o--')
+    plt.plot(field,(data_y-data_y[0]+1.0),'o')
+    plt.fill_between(field, triplet_yield - 2.0*standard_error, triplet_yield + 2.0*standard_error,
+                 color='salmon', alpha=0.4)
+    plt.ylabel('Triplet Yield')
+    plt.title('Rotational Relaxation'+str(temp))
+    plt.xlabel('field')
+    plt.savefig("pe1p"+str(temp)+".pdf")
+    plt.show()
+    print()
+    print('------------------')
+    print('temp =',temp)
+    print('------------------')
+    print()
+    print(tau_c,dj,ks,kt,lamb)
+    print('_____',val,'_____')       
     return val
 
 t0 = time.clock()
 #np.random.seed()
-
-"""instead of constraints, define and vary ks and use the knowledge of the lifetime
- and its relationship to ks and kt to determine kt while keeping a constant lifetime"""
-
-bnds = ((1e-16, None), (1e-16, None), (1e-16, None))
-x0 = [1.5,0.5,3.0]
-
-print(minimize(lambda x: calc_yield(*x),x0,bounds=bnds))
-
-#print(calc_yield(5.47e-5,1.9545))
+# x0 = tau_c,y,lamb,ks,kt
+#bnds = ((1e-5, 1e2), (1e-10, None),(1e-10, 0.10), (1e-5, 1.0e2), (1e-5, 1.0e2))
+bnds = ((1e-7, None), (1e-10, None), (1e-10, None), (1e-10, None), (1e-10, None))
+cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]})
+with open("test_pe1p.txt","w+") as p:
+    with open("results_pe1p.txt","w+") as f:
+        f.write("x0 = tau_c,y,ks,kt,lamb\n")
+        #---------------------------------------------------------------------------------------------------------------------------
+        x0 = [1.0000000000000026e-05, 0.79, 0.5326,0.0895, 0.11655]
+        #x0 = [0.001210032994966049, 0.784]
+        #ks = 0.0895
+        #kt = 0.11655
+        #lamb = 0.05
+        temp_dat = np.loadtxt('pep_t_290.txt',delimiter=',')
+        temp = 290.0
+        lifetime_exp = 9.34368
+        J = 13.0777/2.0
+        #cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]},{'type': 'ineq', 'fun': lambda x:  3.0*J - np.sqrt(x[1]/x[0])})
+        
+        res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='TNC',bounds=bnds,constraints=cons))
+        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J),bounds=bnds))
+        f.write("\n")
+        f.write("x0 for T=290k\n")
+        p.write(str(temp)+",")
+        for i in range(0,len(res.x)):
+            f.write(str(res.x[i])+"\n")
+            p.write(str(res.x[i])+",")
+        p.write("\n")
+        #---------------------------------------------------------------------------------------------------------------------------
+        """
+        x0 = [0.0176, 0.5, 0.0522, 0.172495, 0.24870]
+        temp_dat = np.loadtxt('pep_t_296.txt',delimiter=',')
+        temp = 296.0
+        lifetime_exp = 9.60262
+        J = 15.5193/2.0
+        #cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]},{'type': 'ineq', 'fun': lambda x:  3.0*J - np.sqrt(x[1]/x[0])})
+        
+        res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
+        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J),bounds=bnds))
+        f.write("\n")
+        f.write("x0 for T=296k\n")
+        p.write(str(temp)+",")
+        for i in range(0,len(res.x)):
+            f.write(str(res.x[i])+"\n")
+            p.write(str(res.x[i])+",")
+        p.write("\n")
+        #---------------------------------------------------------------------------------------------------------------------------
+        x0 = [0.0176,0.5,0.03729,0.233,0.4719]
+        temp_dat = np.loadtxt('pep_t_310.txt',delimiter=',')
+        temp = 310.0
+        lifetime_exp = 8.48055
+        J = 16.1298/2.0
+        #cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]},{'type': 'ineq', 'fun': lambda x:  3.0*J - np.sqrt(x[1]/x[0])})
+        
+        res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
+        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J),bounds=bnds))
+        f.write("\n")
+        f.write("x0 for T=310k\n")
+        p.write(str(temp)+",")
+        for i in range(0,len(res.x)):
+            f.write(str(res.x[i])+"\n")
+            p.write(str(res.x[i])+",")
+        p.write("\n")
+        #---------------------------------------------------------------------------------------------------------------------------
+        x0 = [0.0176,0.5,0.053144,0.309563,0.3660]
+        temp_dat = np.loadtxt('pep_t_330.txt',delimiter=',')
+        temp = 330.0
+        lifetime_exp = 9.430
+        J = 18.3679/2.0
+        #cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]},{'type': 'ineq', 'fun': lambda x:  3.0*J - np.sqrt(x[1]/x[0])})
+        
+        res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
+        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J),bounds=bnds))
+        f.write("\n")
+        f.write("x0 for T=330k\n")
+        p.write(str(temp)+",")
+        for i in range(0,len(res.x)):
+            f.write(str(res.x[i])+"\n")
+            p.write(str(res.x[i])+",")
+        p.write("\n")
+        #---------------------------------------------------------------------------------------------------------------------------
+        x0 = [0.0176,0.5,0.03822,0.351,0.6135]
+        temp_dat = np.loadtxt('pep_t_350.txt',delimiter=',')
+        temp = 350.0
+        lifetime_exp = 9.77525
+        J = 23.0478/2.0
+        #cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]},{'type': 'ineq', 'fun': lambda x:  3.0*J - np.sqrt(x[1]/x[0])})
+        
+        res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
+        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J),bounds=bnds))
+        f.write("\n")
+        f.write("x0 for T=350k\n")
+        p.write(str(temp)+",")
+        for i in range(0,len(res.x)):
+            f.write(str(res.x[i])+"\n")
+            p.write(str(res.x[i])+",")
+        #---------------------------------------------------------------------------------------------------------------------------
 
 print('----------------------------------')
 print('**********************************')
@@ -558,3 +726,4 @@ print(time.clock() - t0)
 print('**********************************')
 print('----------------------------------')
 
+"""

@@ -43,15 +43,15 @@ class rotational_relaxation:
         self.sy = np.array([[0,-0.5j],[0.5j,0]])
         self.sz = np.array([[0.5,0],[0,-0.5]])
         
-        self.s1_x = np.kron(self.sx,self.iden2)
-        self.s1_y = np.kron(self.sy,self.iden2)
-        self.s1_z = np.kron(self.sz,self.iden2)
+        self.s1_x = la.kron(self.sx,self.iden2)
+        self.s1_y = la.kron(self.sy,self.iden2)
+        self.s1_z = la.kron(self.sz,self.iden2)
         
-        self.s2_x = np.kron(self.iden2,self.sx)
-        self.s2_y = np.kron(self.iden2,self.sy)
-        self.s2_z = np.kron(self.iden2,self.sz)
+        self.s2_x = la.kron(self.iden2,self.sx)
+        self.s2_y = la.kron(self.iden2,self.sy)
+        self.s2_z = la.kron(self.iden2,self.sz)
         
-        self.s1_s2 = np.kron(self.sx,self.sx) + np.kron(self.sy,self.sy) + np.kron(self.sz,self.sz)
+        self.s1_s2 = la.kron(self.sx,self.sx) + la.kron(self.sy,self.sy) + la.kron(self.sz,self.sz)
         self.pro_trip = 0.75 * np.eye(4) + self.s1_s2
         self.pro_sing = 0.25 * np.eye(4) - self.s1_s2
         
@@ -176,8 +176,8 @@ class rotational_relaxation:
     # Construct the Hamiltonian matrix for each conformation
     def Hamiltonian_Matrix(self):
         self.hamiltonian = self.h0
-        self.hamiltonian += np.kron(self.omegatot_1[0] * self.sx + self.omegatot_1[1] * self.sy + self.omegatot_1[2] * self.sz, self.iden2)
-        self.hamiltonian += np.kron(self.iden2, self.omegatot_2[0] * self.sx + self.omegatot_2[1] * self.sy + self.omegatot_2[2] * self.sz)
+        self.hamiltonian += la.kron(self.omegatot_1[0] * self.sx + self.omegatot_1[1] * self.sy + self.omegatot_1[2] * self.sz, self.iden2)
+        self.hamiltonian += la.kron(self.iden2, self.omegatot_2[0] * self.sx + self.omegatot_2[1] * self.sy + self.omegatot_2[2] * self.sz)
         self.hamiltonian_a = self.hamiltonian + (-2.0*(self.J_couple + self.del_J_couple))*self.s1_s2
         self.hamiltonian_b = self.hamiltonian + (-2.0*(self.J_couple - self.del_J_couple))*self.s1_s2
                 
@@ -185,10 +185,10 @@ class rotational_relaxation:
    
     # Define the reference Liouvillian ltot and its inverse linv
     def liouville(self):
-        self.ltot[:16,:16] = np.kron((-1j*self.hamiltonian_a-self.haberkorn),self.iden4) + np.kron(self.iden4,np.transpose(+1j*self.hamiltonian_a-self.haberkorn)) - self.exchange_rate*self.iden16            
+        self.ltot[:16,:16] = la.kron((-1j*self.hamiltonian_a-self.haberkorn),self.iden4) + la.kron(self.iden4,np.transpose(+1j*self.hamiltonian_a-self.haberkorn)) - self.exchange_rate*self.iden16            
         self.ltot[:16,16:] = self.exchange_rate * self.iden16
         self.ltot[16:,:16] = self.exchange_rate * self.iden16
-        self.ltot[16:,16:] = np.kron((-1j*self.hamiltonian_b-self.haberkorn),self.iden4) + np.kron(self.iden4,np.transpose(+1j*self.hamiltonian_b-self.haberkorn)) - self.exchange_rate*self.iden16
+        self.ltot[16:,16:] = la.kron((-1j*self.hamiltonian_b-self.haberkorn),self.iden4) + la.kron(self.iden4,np.transpose(+1j*self.hamiltonian_b-self.haberkorn)) - self.exchange_rate*self.iden16
         
         self.linv = inv(self.ltot)
         
@@ -366,7 +366,7 @@ class rotational_relaxation:
                 # Define qmn = mu_b*(g1_m*t1_n + g2_m*t2_n)
                 self.Bmn = self.B
                 self.qmn = self.elec_1[i,j,:,:]+self.elec_2[i,j,:,:]+self.dipolar_tensor_product[i,j,:,:]
-                self.amn = np.kron(self.qmn,self.iden4) - np.kron(self.iden4,np.transpose(self.qmn))
+                self.amn = la.kron(self.qmn,self.iden4) - la.kron(self.iden4,np.transpose(self.qmn))
                 self.Bmn[:16,:16] = self.amn
                 self.Bmn[16:,16:] = self.amn
                 
@@ -494,7 +494,7 @@ kt = 0.6218966518e2
 tau_c = 1.9545e0
 exchange_rate = 1.0e0/(2.0e0*tau_c)
 
-num_samples = 20
+num_samples = 1000
 dividor = 1.0/np.float(num_samples)
 samples = np.arange(1.0,np.float(num_samples))
 trip = np.zeros_like(samples)
