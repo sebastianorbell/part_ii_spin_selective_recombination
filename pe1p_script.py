@@ -10,6 +10,7 @@ Script for dmj-pe1p-ndi
 """
 
 import time
+import timeit
 import numpy as np
 import scipy.linalg as la
 import matplotlib.pyplot as plt
@@ -478,7 +479,7 @@ def inertia_tensor(data):
 def rad_tensor_mol_axis(transform_mol,transform_dmj,tensor):
     return transform(transform_mol,(transform(inv(transform_dmj),tensor)))
 
-def calc_yield(tau_c,y,lamb,ks,kt,temp,temp_dat,lifetime_exp, J):
+def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J):
 
 
     # Define variables, initial frame
@@ -550,13 +551,6 @@ def calc_yield(tau_c,y,lamb,ks,kt,temp,temp_dat,lifetime_exp, J):
     
     spin_numbers_1 = np.array([[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.0]])
     spin_numbers_2 = np.array([[0.5,0.5,0.5,0.5,1.0,1.0]])
-    
-    #tau_c = 0.03665841
-    #dj = 6.88034966
-    #J = 7.85
-    #lamb = 1.66422831e-02
-    
-    dj = np.sqrt(y/tau_c)
 
     field = np.reshape(temp_dat[:,0],(len(temp_dat[:,0])))
     data_y = np.reshape(temp_dat[:,1],(len(temp_dat[:,1])))
@@ -565,18 +559,59 @@ def calc_yield(tau_c,y,lamb,ks,kt,temp,temp_dat,lifetime_exp, J):
     
     exchange_rate = 1.0e0/(2.0e0*tau_c)
     
-    num_samples = 3
+    num_samples = 100
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
-
-    lifetime = 0.0
+    w = 5.0 
+    
+#--------------------------------------------------------------------------------------------------------------------------------------
+#zero field lifetime
+    
+    lifetime_zero = 0.0
     # zero field lifetime
     for index, item in enumerate(samples):
             np.random.seed(index)
             relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,0.0,J,dj,ks,kt,exchange_rate,lamb,temp)
-            lifetime += relaxation_0.lifetime()
-    lifetime = lifetime/np.float(num_samples)
-    print('lifetime',lifetime)
+            lifetime_zero += relaxation_0.lifetime()
+    lifetime_zero = np.float(lifetime_zero)/np.float(num_samples)
+    print('lifetime at zero field',lifetime_zero)
+    
+    lifetime_dif_zero = lifetime_zero - lifetime_exp_zero
+    w_0 = w/lifetime_exp_zero
+    
+    
+#--------------------------------------------------------------------------------------------------------------------------------------
+#resonance field lifetime (B=2J)
+    
+    lifetime_res = 0.0
+    # zero field lifetime
+    for index, item in enumerate(samples):
+            np.random.seed(index)
+            relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,2.0*J,J,dj,ks,kt,exchange_rate,lamb,temp)
+            lifetime_res += relaxation_0.lifetime()
+    lifetime_res = np.float(lifetime_res)/np.float(num_samples)
+    print('lifetime at resonance',lifetime_res)
+    
+    lifetime_dif_res = lifetime_res - lifetime_exp_res
+    w_res = w/lifetime_exp_res
+    
+#--------------------------------------------------------------------------------------------------------------------------------------
+# High field lifetime 
+    
+    lifetime_high = 0.0
+    # zero field lifetime
+    for index, item in enumerate(samples):
+            np.random.seed(index)
+            relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,100.0,J,dj,ks,kt,exchange_rate,lamb,temp)
+            lifetime_high += relaxation_0.lifetime()
+    lifetime_high = np.float(lifetime_high)/np.float(num_samples)
+    print('lifetime at high field',lifetime_high)
+    
+    lifetime_dif_high = lifetime_high - lifetime_exp_high
+    w_h = w/lifetime_exp_high
+    
+#--------------------------------------------------------------------------------------------------------------------------------------
+  
     
     for index_field,item_field in enumerate(field):
         total_t = 0.0
@@ -594,131 +629,153 @@ def calc_yield(tau_c,y,lamb,ks,kt,temp,temp_dat,lifetime_exp, J):
     standard_error = standard_error/(triplet_yield[0])
     triplet_yield = triplet_yield/(triplet_yield[0])
     
-    lifetime_dif = lifetime - lifetime_exp
-    w1 = 10.0/lifetime_exp
-    w2 = 10.0/lifetime_exp
-    
     # lagrange type terms to ensure that the experimental lifetime is correctly calculated and that Kt is greater than Ks
-    val = np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0))) + (lifetime_dif*w1)**2 + (lifetime_dif*w2)**4
+    val = np.float(10.0*np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0))) + (lifetime_dif_zero*w_0)**4 + (lifetime_dif_res*w_res)**4 + (lifetime_dif_high*w_h)**4)
     
     plt.clf()
     plt.plot(field,triplet_yield,'o--')
     plt.plot(field,(data_y-data_y[0]+1.0),'o')
     plt.fill_between(field, triplet_yield - 2.0*standard_error, triplet_yield + 2.0*standard_error,
                  color='salmon', alpha=0.4)
-    plt.ylabel('Triplet Yield')
-    plt.title('Rotational Relaxation'+str(temp))
-    plt.xlabel('field')
+    plt.ylabel('Relative Triplet Yield')
+    plt.title('pe1p at (K) '+str(temp))
+    plt.xlabel('field (mT)')
     plt.savefig("pe1p"+str(temp)+".pdf")
     plt.show()
+    
+    plt.clf()
+    plt.plot(np.array([0.0,2.0*J,100.0]),np.array([lifetime_zero,lifetime_res,lifetime_high]), label = 'Calculated')
+    plt.plot(np.array([0.0,2.0*J,100.0]),np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high]),label = 'Experimental')
+    plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=2,
+           ncol=2, mode="expand", borderaxespad=-1.)
+    plt.xlabel('Field (mT)')
+    plt.ylabel('Lifetime')
+    plt.title('PE1P lifetime at (K) '+str(temp))
+    plt.savefig("pe1p_lifetimes_"+str(temp)+".pdf")
+    plt.show()
+    
     print()
     print('------------------')
     print('temp =',temp)
     print('------------------')
     print()
-    print(tau_c,dj,ks,kt,lamb)
+    print('tau_c,dj,lamb,ks,kt')
+    print(tau_c,dj,lamb,ks,kt)
     print('_____',val,'_____')       
     return val
 
+"""
 t0 = time.clock()
 #np.random.seed()
-# x0 = tau_c,y,lamb,ks,kt
+# x0 = tau_c,dj,lamb,ks,kt
 #bnds = ((1e-5, 1e2), (1e-10, None),(1e-10, 0.10), (1e-5, 1.0e2), (1e-5, 1.0e2))
-bnds = ((1e-7, None), (1e-10, None), (1e-10, None), (1e-10, None), (1e-10, None))
+bnds = ((1e-5, 1.0e-2),(1.0e-6, 1.0e3),(1.0e-10, 0.20),(1.0e-4, 1.0e0),(1e-4, 1.0e0))
 cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]})
 with open("test_pe1p.txt","w+") as p:
     with open("results_pe1p.txt","w+") as f:
         f.write("x0 = tau_c,y,ks,kt,lamb\n")
         #---------------------------------------------------------------------------------------------------------------------------
-        x0 = [1.0000000000000026e-05, 0.79, 0.5326,0.0895, 0.11655]
-        #x0 = [0.001210032994966049, 0.784]
-        #ks = 0.0895
-        #kt = 0.11655
-        #lamb = 0.05
+        x0 = [0.0010137734779859275, 35.32797122950225, 0.1, 0.5167373150797832, 0.08239319732088853]
+        
         temp_dat = np.loadtxt('pep_t_290.txt',delimiter=',')
         temp = 290.0
-        lifetime_exp = 9.34368
+        #lifetime_exp = 9.34368
+        lifetime_exp_zero = 9.850813181812017
+        lifetime_exp_res = 2.095744981948086
+        lifetime_exp_high = 10.476062668545783
         J = 13.0777/2.0
-        #cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]},{'type': 'ineq', 'fun': lambda x:  3.0*J - np.sqrt(x[1]/x[0])})
         
-        res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='TNC',bounds=bnds,constraints=cons))
-        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J),bounds=bnds))
-        f.write("\n")
-        f.write("x0 for T=290k\n")
-        p.write(str(temp)+",")
-        for i in range(0,len(res.x)):
-            f.write(str(res.x[i])+"\n")
-            p.write(str(res.x[i])+",")
-        p.write("\n")
-        #---------------------------------------------------------------------------------------------------------------------------
-        """
-        x0 = [0.0176, 0.5, 0.0522, 0.172495, 0.24870]
-        temp_dat = np.loadtxt('pep_t_296.txt',delimiter=',')
-        temp = 296.0
-        lifetime_exp = 9.60262
-        J = 15.5193/2.0
-        #cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]},{'type': 'ineq', 'fun': lambda x:  3.0*J - np.sqrt(x[1]/x[0])})
-        
-        res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
-        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J),bounds=bnds))
+        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='TNC',bounds=bnds,constraints=cons))
+        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
         f.write("\n")
         f.write("x0 for T=296k\n")
-        p.write(str(temp)+",")
+        f.write(str(res)+"\n")
         for i in range(0,len(res.x)):
-            f.write(str(res.x[i])+"\n")
             p.write(str(res.x[i])+",")
-        p.write("\n")
+        p.write(str(temp)+"\n")
+        
+        
         #---------------------------------------------------------------------------------------------------------------------------
-        x0 = [0.0176,0.5,0.03729,0.233,0.4719]
+        
+        x0 = [0.0001,50.0,0.01, 0.0512793,0.170631]
+        
+        temp_dat = np.loadtxt('pep_t_296.txt',delimiter=',')
+        temp = 296.0
+        #lifetime_exp = 9.60262
+        lifetime_exp_zero = 11.125850840377698
+        lifetime_exp_res = 2.0385937159201912
+        lifetime_exp_high = 14.774653145254574
+        J = 15.5193/2.0
+       
+        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
+        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
+        f.write("\n")
+        f.write("x0 for T=296k\n")
+        f.write(str(res)+"\n")
+        for i in range(0,len(res.x)):
+            p.write(str(res.x[i])+",")
+        p.write(str(temp)+"\n")
+        
+        #---------------------------------------------------------------------------------------------------------------------------
+        x0 = [0.0001,50.0,0.01,0.0363603,0.231239]
         temp_dat = np.loadtxt('pep_t_310.txt',delimiter=',')
         temp = 310.0
-        lifetime_exp = 8.48055
+        #lifetime_exp = 8.48055
+        lifetime_exp_zero = 10.688052807356911
+        lifetime_exp_res = 2.0093525777020207
+        lifetime_exp_high = 16.64817816298419
         J = 16.1298/2.0
-        #cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]},{'type': 'ineq', 'fun': lambda x:  3.0*J - np.sqrt(x[1]/x[0])})
         
-        res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
-        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J),bounds=bnds))
+        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
+        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
         f.write("\n")
-        f.write("x0 for T=310k\n")
-        p.write(str(temp)+",")
+        f.write("x0 for T=296k\n")
+        f.write(str(res)+"\n")
         for i in range(0,len(res.x)):
-            f.write(str(res.x[i])+"\n")
             p.write(str(res.x[i])+",")
-        p.write("\n")
+        p.write(str(temp)+"\n")
+        
         #---------------------------------------------------------------------------------------------------------------------------
-        x0 = [0.0176,0.5,0.053144,0.309563,0.3660]
+        x0 = [0.0001,50.0,0.01, 0.0540766, 0.307689]
         temp_dat = np.loadtxt('pep_t_330.txt',delimiter=',')
         temp = 330.0
-        lifetime_exp = 9.430
+        #lifetime_exp = 9.430
+        lifetime_exp_zero = 4.767395962564578
+        lifetime_exp_res = 3.361584161161127
+        lifetime_exp_high = 7.046286828311824
         J = 18.3679/2.0
-        #cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]},{'type': 'ineq', 'fun': lambda x:  3.0*J - np.sqrt(x[1]/x[0])})
         
-        res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
-        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J),bounds=bnds))
+       # res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
+        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
         f.write("\n")
-        f.write("x0 for T=330k\n")
-        p.write(str(temp)+",")
+        f.write("x0 for T=296k\n")
+        f.write(str(res)+"\n")
         for i in range(0,len(res.x)):
-            f.write(str(res.x[i])+"\n")
             p.write(str(res.x[i])+",")
-        p.write("\n")
+        p.write(str(temp)+"\n")
+        
         #---------------------------------------------------------------------------------------------------------------------------
-        x0 = [0.0176,0.5,0.03822,0.351,0.6135]
+        x0 = [0.0001,50.0,0.01,0.0391576, 0.349658]
         temp_dat = np.loadtxt('pep_t_350.txt',delimiter=',')
         temp = 350.0
-        lifetime_exp = 9.77525
+        #lifetime_exp = 9.77525
+        lifetime_exp_zero = 9.731343150944575
+        lifetime_exp_res = 1.841454381233581
+        lifetime_exp_high = 15.695685358775423
         J = 23.0478/2.0
-        #cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]},{'type': 'ineq', 'fun': lambda x:  3.0*J - np.sqrt(x[1]/x[0])})
         
-        res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
-        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J),bounds=bnds))
+        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
+        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
         f.write("\n")
-        f.write("x0 for T=350k\n")
-        p.write(str(temp)+",")
+        f.write("x0 for T=296k\n")
+        f.write(str(res)+"\n")
         for i in range(0,len(res.x)):
-            f.write(str(res.x[i])+"\n")
             p.write(str(res.x[i])+",")
+        p.write(str(temp)+"\n")
+        
         #---------------------------------------------------------------------------------------------------------------------------
+
+
 
 print('----------------------------------')
 print('**********************************')
@@ -726,4 +783,25 @@ print(time.clock() - t0)
 print('**********************************')
 print('----------------------------------')
 
+
 """
+
+tau_c = 0.0010137734779859275
+dj = 35.32797122950225
+lamb = 0.1
+ks = 0.08239319732088853
+kt = 0.5167373150797832
+temp_dat = np.loadtxt('pep_t_290.txt',delimiter=',')
+temp = 290.0
+lifetime_exp_zero = 9.850813181812017
+lifetime_exp_res = 2.095744981948086
+lifetime_exp_high = 10.476062668545783
+J = 13.0777/2.0
+
+
+benchmarks = []
+
+benchmarks.append(timeit.Timer('calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)',
+            'from __main__ import calc_yield, tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J').timeit(number=1))
+print('-------------')
+print(benchmarks)

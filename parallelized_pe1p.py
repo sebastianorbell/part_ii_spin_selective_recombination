@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Nov 21 14:27:36 2018
+Created on Fri Nov 30 09:28:17 2018
 
 @author: sebastianorbell
 """
 
-import time
+import multiprocessing as mp
+import timeit
 import numpy as np
 import scipy.linalg as la
 import matplotlib.pyplot as plt
 from scipy.linalg import inv as inv
 from scipy.optimize import minimize
 import scipy.stats as sts
+import platform
 
 class rotational_relaxation:
     
 
     def __init__(self,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
         # declare constants and identities
-
-        self.r_perp = 16.60409997886e-10       
-        self.r_parr = 4.9062966e-10
+        self.r_perp = 16.65552296e-10       
+        self.r_parr = 8.130217003e-10
         
         self.prefact = 3.92904692e-03
         self.beta = 9.96973104e+01
@@ -476,6 +477,206 @@ def inertia_tensor(data):
 def rad_tensor_mol_axis(transform_mol,transform_dmj,tensor):
     return transform(transform_mol,(transform(inv(transform_dmj),tensor)))
 
+def multiprocess_lifetime(processes,number,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
+    samples = np.ones(number)
+    pool = mp.Pool(processes=processes)
+    results = [pool.apply_async(object_function_call_lifetime, args=(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp)) for s in samples]
+    h = [p.wait() for p in results]
+    results = [p.get() for p in results]
+    pool.close()
+    pool.join()
+    return np.sum(results)
+
+def object_function_call_lifetime(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
+    #np.random.seed(1)
+    # Define class       
+    relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp)
+    # Calculate triplet yield
+    lifetime = relaxation.lifetime()
+
+    return np.float(lifetime)
+
+def multiprocess_yield(processes,number,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
+    samples = np.ones(number)
+    pool = mp.Pool(processes=processes)
+    results = [pool.apply_async(object_function_call_yield, args=(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp)) for s in samples]
+    h = [p.wait() for p in results]
+    results = [p.get() for p in results]
+    pool.close()
+    pool.join()
+    
+    return results
+
+def object_function_call_yield(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
+    #np.random.seed(1)
+    # Define class       
+    relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp)
+    # Calculate triplet yield
+    trip = relaxation.triplet_yield()
+    
+    return trip
+
+def calc_yield_parallel(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J):
+
+
+    # Define variables, initial frame
+    rad_fram_aniso_g1 = np.array([[0.0006,0.0,0.0],[0.0,0.0001,0.0],[0.0,0.0,-0.0009]])
+    rad_fram_aniso_g2 = np.array([[0.0010,0.0,0.0],[0.0,0.0007,0.0],[0.0,0.0,-0.0020]])
+    
+    rad_fram_aniso_hyperfine_1 = np.zeros([19,3,3])
+    rad_fram_aniso_hyperfine_1[0] = array_construct(0.018394,0.00575,-0.024144,0.119167,-0.090257,-0.105530)
+    rad_fram_aniso_hyperfine_1[1] = array_construct(-0.030255,0.134767,-0.104512,0.111178,0.03952,0.065691)
+    rad_fram_aniso_hyperfine_1[2] = array_construct(0.041327,-0.039294,0.002033,0.017961,0.78922,0.025615)
+    rad_fram_aniso_hyperfine_1[3] = array_construct(0.065617,-0.016154,-0.049462,0.036655,0.014217,0.004047)
+    rad_fram_aniso_hyperfine_1[4] = array_construct(0.069089,-0.054902,-0.014187,0.013749,-0.075976,-0.006477)
+    rad_fram_aniso_hyperfine_1[5] = array_construct(0.098308,-0.041108,-0.0572,-0.024641,0.013959,0.002803)
+    rad_fram_aniso_hyperfine_1[6] = array_construct(0.017844,0.006183,-0.024028,-00.119099,-0.090068,0.105661)
+    rad_fram_aniso_hyperfine_1[7] = array_construct(-0.030775,0.135406,-0.104631,-0.110876,0.039322,-0.065607)
+    rad_fram_aniso_hyperfine_1[8] = array_construct(0.041235,-0.039174,-0.002061,-0.018150,0.078901,-0.025838)
+    rad_fram_aniso_hyperfine_1[9] = array_construct(0.065415,-0.015957,-0.049358,-0.036874,0.014222,-0.004080)
+    rad_fram_aniso_hyperfine_1[10] = array_construct(0.069102,-0.054901,-0.014201,-0.014035,-0.075981,0.006618)
+    rad_fram_aniso_hyperfine_1[11] = array_construct(0.098464,-0.041245,-0.0571219,0.024346,0.014054,-0.002814)
+    rad_fram_aniso_hyperfine_1[12] = array_construct(0.036159,-0.00026,-0.035899,0.038259,-0.007026,-0.004047)
+    rad_fram_aniso_hyperfine_1[13] = array_construct(0.036159,-0.00026,-0.035899,0.038259,-0.007026,-0.004047)
+    rad_fram_aniso_hyperfine_1[14] = array_construct(0.036159,-0.00026,-0.035899,0.038259,-0.007026,-0.004047)
+    rad_fram_aniso_hyperfine_1[15] = array_construct(0.035983,-0.000104,-0.035879,-0.038338,-0.007021,0.004066)
+    rad_fram_aniso_hyperfine_1[16] = array_construct(0.035983,-0.000104,-0.035879,-0.038338,-0.007021,0.004066)
+    rad_fram_aniso_hyperfine_1[17] = array_construct(0.035983,-0.000104,-0.035879,-0.038338,-0.007021,0.004066)
+    rad_fram_aniso_hyperfine_1[18] = array_construct(-0.772676,-0.7811,1.553776,0.000000,-0.061480,0.000443)
+
+    rad_fram_aniso_hyperfine_2 = np.zeros([6,3,3])
+    rad_fram_aniso_hyperfine_2[0] = array_construct(0.011586,0.032114,-0.0437,-0.101834,-0.000008,0.000014)
+    rad_fram_aniso_hyperfine_2[1] = array_construct(0.011586,0.032114,-0.0437,-0.101834,0.000014,0.000008)
+    rad_fram_aniso_hyperfine_2[2] = array_construct(0.011586,0.032114,-0.0437,-0.101834,0.000014,0.000008)
+    rad_fram_aniso_hyperfine_2[3] = array_construct(0.011586,0.032114,-0.0437,-0.101834,-0.000008,0.000014)
+    rad_fram_aniso_hyperfine_2[4] = array_construct(0.0352,0.034,-0.0692,0.0,0.0,0.0)
+    rad_fram_aniso_hyperfine_2[5] = array_construct(0.0352,0.034,-0.0692,0.0,0.0,0.0)
+
+    # axis frames
+    data_xyz = np.loadtxt('dmj-an-pe1p-ndi-opt.txt',delimiter=',')
+    transform_mol = inertia_tensor(data_xyz)
+    
+    dmj_xyz = np.loadtxt('dmj_in_pe1p.txt',delimiter=',')
+    transform_dmj = inertia_tensor(dmj_xyz)
+    
+    ndi_xyz = np.loadtxt('NDI_in_pe1p.txt',delimiter=',')
+    transform_ndi = inertia_tensor(ndi_xyz)
+    
+    # Convert to molecular frame
+    aniso_g1 = rad_tensor_mol_axis(transform_mol,transform_dmj,rad_fram_aniso_g1)
+    aniso_g2 = rad_tensor_mol_axis(transform_mol,transform_ndi,rad_fram_aniso_g2)
+
+    aniso_hyperfine_1 = rad_tensor_mol_axis(transform_mol,transform_dmj,rad_fram_aniso_hyperfine_1)
+    aniso_hyperfine_2 = rad_tensor_mol_axis(transform_mol,transform_ndi,rad_fram_aniso_hyperfine_2)
+    
+    
+    # for n=1 
+    radius = 24.044e-10
+    
+    cnst = (1.0e3*1.25663706e-6*1.054e-34*1.766086e11)/(4.0*np.pi*radius**3)
+    aniso_dipolar = np.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,-2.0]])*cnst
+    
+    # Isotropic components
+    g1_iso = 2.0031
+    g2_iso = 2.0040
+    
+    # ISO h1 for the anti conformation
+    iso_h1 = np.array([[2.308839,0.903770,-0.034042,-0.077575,1.071863,0.258828,2.308288,0.0902293,-0.034202,0.077648,1.073569,0.259878,-0.166563,-0.166563,-0.166563,-0.166487,-0.166487,-0.166487,0.831260]])
+    
+    iso_h2 = np.array([[-0.1927,-0.1927,-0.1927,-0.1927,-0.0963,-0.0963]])
+    
+    
+    spin_numbers_1 = np.array([[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.0]])
+    spin_numbers_2 = np.array([[0.5,0.5,0.5,0.5,1.0,1.0]])
+
+    field = np.reshape(temp_dat[:,0],(len(temp_dat[:,0])))
+    data_y = np.reshape(temp_dat[:,1],(len(temp_dat[:,1])))
+    triplet_yield = np.zeros_like(field)
+    standard_error = np.zeros_like(field)     
+    
+    exchange_rate = 1.0e0/(2.0e0*tau_c)
+    
+    processes = 4
+    num_samples = 100
+    samples = np.arange(1.0,np.float(num_samples))
+    trip = np.zeros_like(samples)
+    w = 5.0 
+    
+#--------------------------------------------------------------------------------------------------------------------------------------
+#zero field lifetime
+    lifetime_zero = multiprocess_lifetime(processes,num_samples,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,0.0,J,dj,ks,kt,exchange_rate,lamb,temp)
+    lifetime_zero = lifetime_zero/np.float(num_samples)
+    print('lifetime at zero field',lifetime_zero)
+    
+    lifetime_dif_zero = lifetime_zero - lifetime_exp_zero
+    w_0 = w/lifetime_exp_zero
+    
+    
+#--------------------------------------------------------------------------------------------------------------------------------------
+#resonance field lifetime (B=2J)
+    lifetime_res= multiprocess_lifetime(processes,num_samples,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,2.0*J,J,dj,ks,kt,exchange_rate,lamb,temp)
+    lifetime_res = lifetime_res/np.float(num_samples)
+    print('lifetime at resonance',lifetime_res)
+    
+    lifetime_dif_res = lifetime_res - lifetime_exp_res
+    w_res = w/lifetime_exp_res
+    
+#--------------------------------------------------------------------------------------------------------------------------------------
+# High field lifetime 
+    lifetime_high= multiprocess_lifetime(processes,num_samples,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,100.0,J,dj,ks,kt,exchange_rate,lamb,temp)
+    lifetime_high = lifetime_high/np.float(num_samples)
+    print('lifetime at high field',lifetime_high)
+    
+    lifetime_dif_high = lifetime_high - lifetime_exp_high
+    w_h = w/lifetime_exp_high
+    
+#--------------------------------------------------------------------------------------------------------------------------------------
+    
+    
+    for index_field,item_field in enumerate(field):
+        
+        trip = multiprocess_yield(processes,num_samples,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,dj,ks,kt,exchange_rate,lamb,temp)
+        triplet_yield[index_field] = np.sum(trip)/np.float(num_samples)
+        standard_error[index_field] = sts.sem(trip)
+    
+    standard_error = standard_error/(triplet_yield[0])
+    triplet_yield = triplet_yield/(triplet_yield[0])
+    
+    # lagrange type terms to ensure that the experimental lifetime is correctly calculated and that Kt is greater than Ks
+    val = np.float(10.0*np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0))) + (lifetime_dif_zero*w_0)**4 + (lifetime_dif_res*w_res)**4 + (lifetime_dif_high*w_h)**4)
+    
+    plt.clf()
+    plt.plot(field,triplet_yield,'o--')
+    plt.plot(field,(data_y-data_y[0]+1.0),'o')
+    plt.fill_between(field, triplet_yield - 2.0*standard_error, triplet_yield + 2.0*standard_error,
+                 color='salmon', alpha=0.4)
+    plt.ylabel('Relative Triplet Yield')
+    plt.title('pe1p at (K) '+str(temp))
+    plt.xlabel('field (mT)')
+    plt.savefig("pe1p"+str(temp)+".pdf")
+    plt.show()
+    
+    plt.clf()
+    plt.plot(np.array([0.0,2.0*J,100.0]),np.array([lifetime_zero,lifetime_res,lifetime_high]), label = 'Calculated')
+    plt.plot(np.array([0.0,2.0*J,100.0]),np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high]),label = 'Experimental')
+    plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=2,
+           ncol=2, mode="expand", borderaxespad=-1.)
+    plt.xlabel('Field (mT)')
+    plt.ylabel('Lifetime')
+    plt.title('PE1P lifetime at (K) '+str(temp))
+    plt.savefig("pe1p_lifetimes_"+str(temp)+".pdf")
+    plt.show()
+    
+    print()
+    print('------------------')
+    print('temp =',temp)
+    print('------------------')
+    print()
+    print('tau_c,dj,lamb,ks,kt')
+    print(tau_c,dj,lamb,ks,kt)
+    print('_____',val,'_____')       
+    return val
+
 def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J):
 
 
@@ -513,13 +714,13 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     rad_fram_aniso_hyperfine_2[5] = array_construct(0.0352,0.034,-0.0692,0.0,0.0,0.0)
 
     # axis frames
-    data_xyz = np.loadtxt('dmj-an-fn1-ndi-opt.txt',delimiter=',')
+    data_xyz = np.loadtxt('dmj-an-pe1p-ndi-opt.txt',delimiter=',')
     transform_mol = inertia_tensor(data_xyz)
     
-    dmj_xyz = np.loadtxt('dmj_in_fn1.txt',delimiter=',')
+    dmj_xyz = np.loadtxt('dmj_in_pe1p.txt',delimiter=',')
     transform_dmj = inertia_tensor(dmj_xyz)
     
-    ndi_xyz = np.loadtxt('NDI_in_fn1.txt',delimiter=',')
+    ndi_xyz = np.loadtxt('NDI_in_pe1p.txt',delimiter=',')
     transform_ndi = inertia_tensor(ndi_xyz)
     
     # Convert to molecular frame
@@ -531,7 +732,7 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     
     
     # for n=1 
-    radius =  20.986e-10 
+    radius = 24.044e-10
     
     cnst = (1.0e3*1.25663706e-6*1.054e-34*1.766086e11)/(4.0*np.pi*radius**3)
     aniso_dipolar = np.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,-2.0]])*cnst
@@ -545,9 +746,10 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     
     iso_h2 = np.array([[-0.1927,-0.1927,-0.1927,-0.1927,-0.0963,-0.0963]])
     
+    
     spin_numbers_1 = np.array([[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.0]])
     spin_numbers_2 = np.array([[0.5,0.5,0.5,0.5,1.0,1.0]])
-    
+
     field = np.reshape(temp_dat[:,0],(len(temp_dat[:,0])))
     data_y = np.reshape(temp_dat[:,1],(len(temp_dat[:,1])))
     triplet_yield = np.zeros_like(field)
@@ -555,10 +757,10 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     
     exchange_rate = 1.0e0/(2.0e0*tau_c)
     
-    num_samples = 2
+    num_samples = 100
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
-    w =5.0 
+    w = 5.0 
     
 #--------------------------------------------------------------------------------------------------------------------------------------
 #zero field lifetime
@@ -598,7 +800,7 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     # zero field lifetime
     for index, item in enumerate(samples):
             np.random.seed(index)
-            relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,120.0,J,dj,ks,kt,exchange_rate,lamb,temp)
+            relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,100.0,J,dj,ks,kt,exchange_rate,lamb,temp)
             lifetime_high += relaxation_0.lifetime()
     lifetime_high = np.float(lifetime_high)/np.float(num_samples)
     print('lifetime at high field',lifetime_high)
@@ -634,20 +836,20 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     plt.fill_between(field, triplet_yield - 2.0*standard_error, triplet_yield + 2.0*standard_error,
                  color='salmon', alpha=0.4)
     plt.ylabel('Relative Triplet Yield')
-    plt.title('FN1 at (K) '+str(temp))
+    plt.title('pe1p at (K) '+str(temp))
     plt.xlabel('field (mT)')
-    plt.savefig("fn1"+str(temp)+".pdf")
+    plt.savefig("pe1p"+str(temp)+".pdf")
     plt.show()
     
     plt.clf()
-    plt.plot(np.array([0.0,2.0*J,120.0]),np.array([lifetime_zero,lifetime_res,lifetime_high]), label = 'Calculated')
-    plt.plot(np.array([0.0,2.0*J,120.0]),np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high]),label = 'Experimental')
+    plt.plot(np.array([0.0,2.0*J,100.0]),np.array([lifetime_zero,lifetime_res,lifetime_high]), label = 'Calculated')
+    plt.plot(np.array([0.0,2.0*J,100.0]),np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high]),label = 'Experimental')
     plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=2,
            ncol=2, mode="expand", borderaxespad=-1.)
-    plt.ylabel('Field (mT)')
-    plt.xlabel('Lifetime')
-    plt.title('FN1 lifetime at (K) '+str(temp))
-    plt.savefig("fn1_lifetimes_"+str(temp)+".pdf")
+    plt.xlabel('Field (mT)')
+    plt.ylabel('Lifetime')
+    plt.title('PE1P lifetime at (K) '+str(temp))
+    plt.savefig("pe1p_lifetimes_"+str(temp)+".pdf")
     plt.show()
     
     print()
@@ -660,57 +862,27 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     print('_____',val,'_____')       
     return val
 
-t0 = time.clock()
+"""
 #np.random.seed()
 # x0 = tau_c,dj,lamb,ks,kt
-bnds = ((1e-5, 1.0e-2),(1.0e-6, 1.0e3),(1.0e-10, 0.10),(1.0e-6, 1.0e0),(1e-6, 1.0e0))
-#tau_c = 1.0e-3
-
-with open("test_fn1.txt","w+") as p:
-    with open("results_fn1.txt","w+") as f:
-        f.write("x0 = y,ks,kt,lamb\n")
-        
+#bnds = ((1e-5, 1e2), (1e-10, None),(1e-10, 0.10), (1e-5, 1.0e2), (1e-5, 1.0e2))
+bnds = ((1e-5, 1.0e-2),(1.0e-6, 1.0e3),(1.0e-10, 0.20),(1.0e-4, 1.0e0),(1e-4, 1.0e0))
+cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]})
+with open("test_pe1p.txt","w+") as p:
+    with open("results_pe1p.txt","w+") as f:
+        f.write("x0 = tau_c,dj,lamb,ks,kt\n")
         #---------------------------------------------------------------------------------------------------------------------------
-
-        x0 = [0.0005723367420829245,61.26208867322158,0.005,0.16694391064910116,1.5]
-        #ks = 0.3848
-        #kt = 0.2731
-        temp_dat = np.loadtxt('t_273.txt',delimiter=',')
-        temp = 273.0
-        #lifetime_exp = 2.61982
-        lifetime_exp_zero = 2.69043554319234
-        lifetime_exp_res = 1.1276501297107735
-        lifetime_exp_high = 2.631178193792446
-        #J = 18.6835
-        # Lorentzian fitted J
-        J = 20.25
+        x0 = [0.0010137734779859275, 35.32797122950225, 0.1, 0.5167373150797832, 0.08239319732088853]
         
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
-       
-        f.write("\n")
-        f.write("x0 for T=273k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
+        temp_dat = np.loadtxt('pep_t_290.txt',delimiter=',')
+        temp = 290.0
+        #lifetime_exp = 9.34368
+        lifetime_exp_zero = 9.850813181812017
+        lifetime_exp_res = 2.095744981948086
+        lifetime_exp_high = 10.476062668545783
+        J = 13.0777/2.0
         
-        
-        #---------------------------------------------------------------------------------------------------------------------------
-        
-        #x0 = [0.5,0.03729]
-        x0 = [0.01,10.985279398057502,0.005,0.10469456060920228,1.0418834069344398]
-        #ks = 0.268
-        #kt = 0.419
-        temp_dat = np.loadtxt('t_296.txt',delimiter=',')
-        temp = 296.0
-        #lifetime_exp = 3.05369
-        lifetime_exp_zero = 3.4792399
-        lifetime_exp_res = 1.2823553391292937
-        lifetime_exp_high = 3.635305501796483
-        #J = 19.587
-        # Lorentzian fitted J
-        J =20.77102
-        
+        #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='TNC',bounds=bnds,constraints=cons))
         res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
         f.write("\n")
         f.write("x0 for T=296k\n")
@@ -718,112 +890,74 @@ with open("test_fn1.txt","w+") as p:
         for i in range(0,len(res.x)):
             p.write(str(res.x[i])+",")
         p.write(str(temp)+"\n")
-        
-        #---------------------------------------------------------------------------------------------------------------------------
-        
-        #x0 = [0.5,0.03729]
-        x0 = [0.0006563236512232049,35.89154898038297,0.005,0.09932507514529408,0.9037783287618298]
-        #ks = 0.2359
-        #kt = 0.454
-        temp_dat = np.loadtxt('t_303.txt',delimiter=',')
-        temp = 303.0
-        #lifetime_exp = 3.25513
-        lifetime_exp_zero = 3.9824680115438866
-        lifetime_exp_res = 1.2878152979810005
-        lifetime_exp_high = 4.1457005816693995
-        #J = 21.5447
-        # Lorentzian fitted J
-        J = 22.59
-        
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
-        f.write("\n")
-        f.write("x0 for T=303k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        
-        #---------------------------------------------------------------------------------------------------------------------------
-        
-        #x0 = [0.5,0.053144]
-        x0 = [0.0004590055248221585,51.724539045868404,0.005,0.08838233586780461,1.4999998569172885]
-        #ks = 0.203
-        #kt = 0.5361
-        temp_dat = np.loadtxt('t_313.txt',delimiter=',')
-        temp = 313.0
-        #lifetime_exp = 3.47981
-        lifetime_exp_zero = 4.223719001138495
-        lifetime_exp_res = 1.3593913081127948
-        lifetime_exp_high = 4.649690269230726
-        #J = 22.699
-        # Lorentzian fitted J
-        J = 23.73
-        
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
-        
-        f.write("\n")
-        f.write("x0 for T=313k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-       
-        
-        #---------------------------------------------------------------------------------------------------------------------------
-        
-        #x0 = [0.5,0.03822]
-        x0 = [0.00041482678238061193,49.98702493633634,0.005,0.06520690179247952,0.85531155164679532]
-        #ks = 0.149
-        #kt = 0.691
-        temp_dat = np.loadtxt('t_333.txt',delimiter=',')
-        temp = 333.0
-        #lifetime_exp = 4.3708
-        lifetime_exp_zero = 5.752641121675911
-        lifetime_exp_res = 1.4174868758031038
-        lifetime_exp_high = 6.347652948471806
-        #J = 27.317
-        # Lorentzian fitted J
-        J = 28.95
-        
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
-        
-        f.write("\n")
-        f.write("x0 for T=333k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        
-        
-        #---------------------------------------------------------------------------------------------------------------------------
-        #x0 = [0.5,0.03822]
-        x0 = [0.009600261811740209,13.263906807125927,0.005,0.045655353857394186,1.3458421442125075]
-        #ks = 0.1144
-        #kt = 0.846
-        temp_dat = np.loadtxt('t_353.txt',delimiter=',')
-        temp = 353.0
-        #lifetime_exp = 5.23854
-        lifetime_exp_zero = 7.049588177788923
-        lifetime_exp_res = 1.4796659908006953
-        lifetime_exp_high = 8.078488090136942
-        #J = 33.6924
-        # Lorentzian fitted J
-        J = 35.41
-        
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
-       
-        f.write("\n")
-        f.write("x0 for T=353k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        
-        #---------------------------------------------------------------------------------------------------------------------------
 
-print('----------------------------------')
-print('**********************************')
-print(time.clock() - t0)
-print('**********************************')
-print('----------------------------------')
+ 
+"""
 
+np.random.seed()
+
+tau_c = 0.0010137734779859275
+dj = 35.32797122950225
+lamb = 0.1
+ks = 0.08239319732088853
+kt = 0.5167373150797832
+temp_dat = np.loadtxt('pep_t_290.txt',delimiter=',')
+temp = 290.0
+lifetime_exp_zero = 9.850813181812017
+lifetime_exp_res = 2.095744981948086
+lifetime_exp_high = 10.476062668545783
+J = 13.0777/2.0
+
+
+benchmarks = []
+
+benchmarks.append(timeit.Timer('calc_yield_parallel(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)',
+            'from __main__ import calc_yield_parallel, tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J').timeit(number=1))
+benchmarks.append(timeit.Timer('calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)',
+            'from __main__ import calc_yield, tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J').timeit(number=1))
+print('-----------------------')
+print(benchmarks)
+
+def print_sysinfo():
+
+    print('\nPython version  :', platform.python_version())
+    print('compiler        :', platform.python_compiler())
+
+    print('\nsystem     :', platform.system())
+    print('release    :', platform.release())
+    print('machine    :', platform.machine())
+    print('processor  :', platform.processor())
+    print('CPU count  :', mp.cpu_count())
+    print('interpreter:', platform.architecture()[0])
+    print('\n\n')
+    
+def plot_results():
+    bar_labels = ['4','serial']
+
+    fig = plt.figure(figsize=(10,8))
+
+    # plot bars
+    y_pos = np.arange(len(benchmarks))
+    plt.yticks(y_pos, bar_labels, fontsize=16)
+    bars = plt.barh(y_pos, benchmarks,
+             align='center', alpha=0.4, color='g')
+
+    # annotation and labels
+
+    for ba,be in zip(bars, benchmarks):
+        plt.text(ba.get_width() + 2, ba.get_y() + ba.get_height()/2,
+                '{0:.2%}'.format(benchmarks[0]/be),
+                ha='center', va='bottom', fontsize=12)
+
+    plt.xlabel('time in seconds' , fontsize=14)
+    plt.ylabel('number of processes', fontsize=14)
+    t = plt.title('Serial vs. Multiprocessing ', fontsize=18)
+    plt.ylim([-1,len(benchmarks)+0.5])
+    plt.xlim([0,max(benchmarks)*1.1])
+    plt.vlines(benchmarks[0], -1, len(benchmarks)+0.5, linestyles='dashed')
+    plt.grid()
+    
+    plt.show()
+    
+plot_results()
+print_sysinfo()
