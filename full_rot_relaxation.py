@@ -515,7 +515,7 @@ for index_field,item_field in enumerate(field):
         relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,omega1,omega2,J,dj,ks,kt,exchange_rate)
         # Calculate triplet yield
         trip[index] = relaxation.triplet_yield()
-        total_t += trip[index]
+        total_t += trip[index] 
     
     triplet_yield[index_field] = total_t*dividor
     standard_error[index_field] = sts.sem(trip)

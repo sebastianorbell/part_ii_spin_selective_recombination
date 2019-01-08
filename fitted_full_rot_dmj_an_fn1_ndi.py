@@ -27,15 +27,22 @@ import scipy.linalg as la
 import matplotlib.pyplot as plt
 from scipy.linalg import inv as inv
 from scipy.optimize import minimize
+import scipy.stats as sts
 
 class rotational_relaxation:
     
 
-    def __init__(self,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate):
+    def __init__(self,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
         # declare constants and identities
-        self.d_perp = 1.38064852e-23*295.0/(8.0*np.pi*0.5812e-3*(13.5e-10*13.5e-10))
-        self.d_parr = 1.38064852e-23*295.0/(8.0*np.pi*0.5812e-3*(11.45e-10*11.45e-10))
-        
+        self.r_perp = 16.60409997886e-10       
+        self.r_parr = 4.9062966e-10
+
+        self.visc = 1.0e-3*(-0.00625*temp+2.425)
+
+        self.convert = 1.0e3/1.76e-11
+
+        self.d_perp = self.convert*1.38064852e-23*temp/(8.0*np.pi*self.visc*(self.r_perp**3))
+        self.d_parr = self.convert*1.38064852e-23*temp/(8.0*np.pi*self.visc*(self.r_parr**3))
         
         
         self.iden2 = np.eye(2)
@@ -62,14 +69,18 @@ class rotational_relaxation:
         # Declare Liouvillian density operators
         self.p0_lou = np.zeros([32,1],dtype = complex)
         self.pt_lou = np.zeros([1,32],dtype = complex)
+        self.ps_lou = np.zeros([1,32],dtype = complex)
         
-        self.lamb = 0.05
+        self.lamb = lamb
         
-        self.p0_lou[:16,:] = 0.25 * ((1.0-self.lamb)*np.reshape(self.pro_sing,(16,1))+(self.lamb/3.0)*np.reshape(self.pro_trip,(16,1))) 
-        self.p0_lou[16:,:] = 0.25 * ((1.0-self.lamb)*np.reshape(self.pro_sing,(16,1))+(self.lamb/3.0)*np.reshape(self.pro_trip,(16,1)))  
+        self.p0_lou[:16,:] = 0.5 * ((1.0-self.lamb)*np.reshape(self.pro_sing,(16,1))+(self.lamb/3.0)*np.reshape(self.pro_trip,(16,1))) 
+        self.p0_lou[16:,:] = 0.5 * ((1.0-self.lamb)*np.reshape(self.pro_sing,(16,1))+(self.lamb/3.0)*np.reshape(self.pro_trip,(16,1)))  
         
         self.pt_lou[:,:16] = np.reshape(self.pro_trip,(1,16)) 
         self.pt_lou[:,16:] = np.reshape(self.pro_trip,(1,16))
+        
+        self.ps_lou[:,:16] = np.reshape(self.pro_sing,(1,16)) 
+        self.ps_lou[:,16:] = np.reshape(self.pro_sing,(1,16))
         
         #Declare Hamiltonian and Louivillian
         self.ltot = np.zeros([32,32], dtype = complex)
@@ -210,7 +221,7 @@ class rotational_relaxation:
         #self.g1_plus_1 
         self.g1[3] = -0.5*(self.aniso_g1[0,2]+self.aniso_g1[2,0]-1.0j*(self.aniso_g1[1,2]+self.aniso_g1[2,1]))
         #self.g1_zero 
-        self.g1[2] = (1/np.sqrt(6))*(2*self.aniso_g1[2,2]-(self.aniso_g1[0,0]+self.aniso_g1[1,1]))
+        self.g1[2] = (1.0/np.sqrt(6))*(2.0*self.aniso_g1[2,2]-(self.aniso_g1[0,0]+self.aniso_g1[1,1]))
         #self.g1_minus_1 
         self.g1[1] = 0.5*(self.aniso_g1[0,2]+self.aniso_g1[2,0]+1.0j*(self.aniso_g1[1,2]+self.aniso_g1[2,1]))
         #self.g1_minus_2 
@@ -223,7 +234,7 @@ class rotational_relaxation:
         #self.g2_plus_1 
         self.g2[3] = -0.5*(self.aniso_g2[0,2]+self.aniso_g2[2,0]-1.0j*(self.aniso_g2[1,2]+self.aniso_g2[2,1]))
         #self.g2_zero 
-        self.g2[2] = (1/np.sqrt(6))*(2*self.aniso_g2[2,2]-(self.aniso_g2[0,0]+self.aniso_g2[1,1]))
+        self.g2[2] = (1.0/np.sqrt(6))*(2.0*self.aniso_g2[2,2]-(self.aniso_g2[0,0]+self.aniso_g2[1,1]))
         #self.g2_minus_1 
         self.g2[1] = 0.5*(self.aniso_g2[0,2]+self.aniso_g2[2,0]+1.0j*(self.aniso_g2[1,2]+self.aniso_g2[2,1]))
         #self.g2_minus_2 
@@ -240,7 +251,7 @@ class rotational_relaxation:
         #self.h1_plus_1 
         self.h1[:,3] = -0.5*(self.hyperfine_1[:,0,2]+self.hyperfine_1[:,2,0]-1.0j*(self.hyperfine_1[:,1,2]+self.hyperfine_1[:,2,1]))
         #self.h1_zero 
-        self.h1[:,2] = (1/np.sqrt(6))*(2*self.hyperfine_1[:,2,2]-(self.hyperfine_1[:,0,0]+self.hyperfine_1[:,1,1]))
+        self.h1[:,2] = (1.0/np.sqrt(6.0))*(2.0*self.hyperfine_1[:,2,2]-(self.hyperfine_1[:,0,0]+self.hyperfine_1[:,1,1]))
         #self.h1_minus_1 
         self.h1[:,1] = 0.5*(self.hyperfine_1[:,0,2]+self.hyperfine_1[:,2,0]+1.0j*(self.hyperfine_1[:,1,2]+self.hyperfine_1[:,2,1]))
         #self.h1_minus_2 
@@ -252,7 +263,7 @@ class rotational_relaxation:
         #self.h2_plus_1 
         self.h2[:,3] = -0.5*(self.hyperfine_2[:,0,2]+self.hyperfine_2[:,2,0]-1.0j*(self.hyperfine_2[:,1,2]+self.hyperfine_2[:,2,1]))
         #self.h2_zero 
-        self.h2[:,2] = (1/np.sqrt(6))*(2*self.hyperfine_2[:,2,2]-(self.hyperfine_2[:,0,0]+self.hyperfine_2[:,1,1]))
+        self.h2[:,2] = (1.0/np.sqrt(6.0))*(2.0*self.hyperfine_2[:,2,2]-(self.hyperfine_2[:,0,0]+self.hyperfine_2[:,1,1]))
         #self.h2_minus_1 
         self.h2[:,1] = 0.5*(self.hyperfine_2[:,0,2]+self.hyperfine_2[:,2,0]+1.0j*(self.hyperfine_2[:,1,2]+self.hyperfine_2[:,2,1]))
         #self.h2_minus_2 
@@ -269,7 +280,7 @@ class rotational_relaxation:
         #self.d_rank_2_plus_1 
         self.d_rank_2[3] = -0.5*(self.dipolar[0,2]+self.dipolar[2,0]-1.0j*(self.dipolar[1,2]+self.dipolar[2,1]))
         #self.d_rank_2_zero 
-        self.d_rank_2[2] = (1/np.sqrt(6))*(2*self.dipolar[2,2]-(self.dipolar[0,0]+self.dipolar[1,1]))
+        self.d_rank_2[2] = (1.0/np.sqrt(6.0))*(2.0*self.dipolar[2,2]-(self.dipolar[0,0]+self.dipolar[1,1]))
         #self.d_rank_2_minus_1 
         self.d_rank_2[1] = 0.5*(self.dipolar[0,2]+self.dipolar[2,0]+1.0j*(self.dipolar[1,2]+self.dipolar[2,1]))
         #self.d_rank_2_minus_2 
@@ -384,6 +395,21 @@ class rotational_relaxation:
         
         return
     
+    def lifetime(self):
+        lifetime = 0.0
+        self.sample_angles()
+        self.Vectors()
+        self.Tot_zeeman_field()
+        self.Hamiltonian_Matrix()
+        self.liouville()
+        self.rank_2_g_tensor()
+        self.rank_2_dipolar()
+        self.rank_2_hyperfine()
+        self.rank_two_component()
+        self.Redfield_Matrix()
+        lifetime = np.matmul((self.pt_lou+self.ps_lou),np.matmul(inv(self.ltot+self.red),self.p0_lou))
+        return np.real(-lifetime)
+    
     def triplet_yield(self):
         trip_yield = 0.0
         self.sample_angles()
@@ -421,7 +447,7 @@ def inertia_tensor(data):
     
     for i in range(0,len(data[:,0])):
         total_m += data[i,0]
-        c_of_m +=data[i,1:4]
+        c_of_m +=data[i,1:4]*data[i,0]
         
     c_of_m = c_of_m/total_m
     # Convert coordinates such that they are centred at the centre of mass
@@ -438,24 +464,26 @@ def inertia_tensor(data):
         inertia[1,1] += com_dat[i,0]*(com_dat[i,1]*com_dat[i,1]+com_dat[i,3]*com_dat[i,3])
         inertia[2,2] += com_dat[i,0]*(com_dat[i,1]*com_dat[i,1]+com_dat[i,2]*com_dat[i,2])
         
-        inertia[0,1] +=com_dat[i,0]*(com_dat[i,1]*com_dat[i,2])
-        inertia[1,0] +=com_dat[i,0]*(com_dat[i,1]*com_dat[i,2])
+        inertia[0,1] += -com_dat[i,0]*(com_dat[i,1]*com_dat[i,2])
+        inertia[1,0] += -com_dat[i,0]*(com_dat[i,1]*com_dat[i,2])
         
-        inertia[0,2] +=com_dat[i,0]*(com_dat[i,1]*com_dat[i,3])
-        inertia[2,0] +=com_dat[i,0]*(com_dat[i,1]*com_dat[i,3])
+        inertia[0,2] += -com_dat[i,0]*(com_dat[i,1]*com_dat[i,3])
+        inertia[2,0] += -com_dat[i,0]*(com_dat[i,1]*com_dat[i,3])
         
-        inertia[2,1] +=com_dat[i,0]*(com_dat[i,3]*com_dat[i,2])
-        inertia[1,2] +=com_dat[i,0]*(com_dat[i,3]*com_dat[i,2])
+        inertia[2,1] += -com_dat[i,0]*(com_dat[i,3]*com_dat[i,2])
+        inertia[1,2] += -com_dat[i,0]*(com_dat[i,3]*com_dat[i,2])
         
         
     val, vec = la.eig(inertia)
-
+    a = np.copy(vec[:,0])
+    vec[:,0] = vec[:,2]
+    vec[:,2] = a
     return vec
 
 def rad_tensor_mol_axis(transform_mol,transform_dmj,tensor):
     return transform(transform_mol,(transform(inv(transform_dmj),tensor)))
 
-def calc_yield(tau_c,dj,ks):
+def calc_yield(tau_c,y,ks,kt,lamb):
 
 
     # Define variables, initial frame
@@ -510,10 +538,9 @@ def calc_yield(tau_c,dj,ks):
     
     
     # for n=1 
-    radius = 16.5e-10 
-    #radius_n2 = 20.9e-10
+    radius = 20.986e-10 
     
-    cnst = 2.0*np.pi*1.760e-8*(-2.00231930*2.00231930*1.25663706e-6*9.274009994e-24*9.274009994e-24/(4.0*np.pi*radius))
+    cnst = (1.0e3*1.25663706e-6*1.054e-34*1.766086e11)/(4.0*np.pi*radius**3)
     aniso_dipolar = np.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,-2.0]])*cnst
     
     # Isotropic components
@@ -531,64 +558,87 @@ def calc_yield(tau_c,dj,ks):
     
     #tau_c = 0.03665841
     #dj = 6.88034966
-    J = 22.64
+    J = 3.49872787e+01
+    #lamb = 1.66422831e-02
     
-    # lifetime = (quant_yield_t/kt) + (quant_yield_s/ks)
-    phi_t = 1.0
-    phi_s = 1.0
-    lifetime = 2.0/3.0
+    dj = np.sqrt(y/tau_c)
     
-    kt = (phi_t*ks)/(lifetime*ks-phi_s)
 
-    t_303 = np.loadtxt('t_303.txt',delimiter=',')
-    field = np.reshape(t_303[:,0],(len(t_303[:,0])))
-    data_y = np.reshape(t_303[:,1],(len(t_303[:,1])))
+    t_353 = np.loadtxt('t_353_.txt',delimiter=',')
+    temp = 353.0
+    field = np.reshape(t_353[:,0],(len(t_353[:,0])))
+    data_y = np.reshape(t_353[:,1],(len(t_353[:,1])))
     triplet_yield = np.zeros_like(field)
+    standard_error = np.zeros_like(field)     
     
     exchange_rate = 1.0e0/(2.0e0*tau_c)
     
     num_samples = 3
     samples = np.arange(1.0,np.float(num_samples))
-         
-    
+    trip = np.zeros_like(samples)
 
+    lifetime_exp = 5.019
+    
+    lifetime = 0.0
+    # zero field lifetime
+    for index, item in enumerate(samples):
+            np.random.seed(index)
+            relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,0.0,J,dj,ks,kt,exchange_rate,lamb,temp)
+            lifetime += relaxation_0.lifetime()
+    lifetime = lifetime/np.float(num_samples)
+    print()
+    print('zero field lifetime',lifetime)
+    
     for index_field,item_field in enumerate(field):
-        total_t = 0.0    
+        total_t = 0.0
         for index, item in enumerate(samples):
             np.random.seed(index)
             # Define class       
-            relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,dj,ks,kt,exchange_rate)
+            relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,dj,ks,kt,exchange_rate,lamb,temp)
             # Calculate triplet yield
-            total_t += relaxation.triplet_yield()
-        
+            trip[index] = relaxation.triplet_yield()
+            total_t += trip[index]
+            
         triplet_yield[index_field] = total_t
-        
-        
+        standard_error[index_field] = sts.sem(trip)
+    
+    standard_error = standard_error/(triplet_yield[0])
     triplet_yield = triplet_yield/(triplet_yield[0])
-    val = np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0)))
     
+    lifetime_dif = lifetime - lifetime_exp
+    w1 = 100.0/lifetime_exp
+    w2 = 10.0/lifetime_exp
     
-    plt.plot(field,triplet_yield,'o-')
+    val = np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0))) + (lifetime_dif*w1)**2 + (lifetime_dif*w2)**4
+    #val = np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0)))
+    
+    plt.plot(field,triplet_yield,'o--')
     plt.plot(field,(data_y-data_y[0]+1.0),'o')
+    plt.fill_between(field, triplet_yield - 2.0*standard_error, triplet_yield + 2.0*standard_error,
+                 color='salmon', alpha=0.4)
     plt.ylabel('Triplet Yield')
     plt.title('Rotational Relaxation')
     plt.xlabel('field')
     plt.show()
     plt.clf()
-
-    print(val,'_____', tau_c,'_____', dj,'_____',ks,'_____',kt)       
+    
+    print(tau_c,dj,ks,kt,lamb)
+    print('_____',val,'_____')       
     return val
 
 t0 = time.clock()
 #np.random.seed()
 
-"""instead of constraints, define and vary ks and use the knowledge of the lifetime
- and its relationship to ks and kt to determine kt while keeping a constant lifetime"""
+cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]})
+bnds = ((1e-16, None), (1e-16, None), (1e-16, None), (1e-16, None), (1e-16, None))
+x0 = [0.0119129 , 1.44202707, 0.431836 , 0.53797579, 0.050737078]
 
-bnds = ((1e-16, None), (1e-16, None), (1e-16, None))
-x0 = [1.5,0.5,3.0]
+print(minimize(lambda x: calc_yield(*x),x0, method='SLSQP',bounds=bnds,constraints=cons))
 
-print(minimize(lambda x: calc_yield(*x),x0,bounds=bnds))
+#bnds = ((1e-16, None), (1e-16, None), (1e-16, None), (1e-16, None), (1e-16, None))
+#x0 = [10.0 , 1.44202707, 0.1 , 0.8, 0.20737078]
+
+#print(minimize(lambda x: calc_yield(*x),x0,bounds=bnds))
 
 #print(calc_yield(5.47e-5,1.9545))
 

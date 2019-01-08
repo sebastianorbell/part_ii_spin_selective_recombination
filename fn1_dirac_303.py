@@ -1,43 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Oct 26 10:06:50 2018
+Created on Fri Nov 30 14:56:39 2018
 
 @author: sebastianorbell
 """
-
-""" 
--- Rotational relaxation model using the Schulten Wolynes approximation
-
--- The two site, J modulation, exchange is modelled using an exact quantum approach.
-
--- The time dependent anisotropic g tensor, dipolar coupling tensor and hyperfine tensors
-     are treated using the Redfield model.
---** 1 = DMJ
-__** 2 = NDI
-
-The plot is fitted to experimental data, 
-by minimising the sum of the square differences between points, 
-by optimising the parameters tau_c and dj
-"""
-
-import time
 import numpy as np
 import scipy.linalg as la
-import matplotlib.pyplot as plt
 from scipy.linalg import inv as inv
-from scipy.optimize import minimize
+from scipy.optimize import differential_evolution
 import scipy.stats as sts
+import multiprocessing as mp
+import matplotlib.pyplot as plt
+from scipy import interpolate
 
 class rotational_relaxation:
     
 
     def __init__(self,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
         # declare constants and identities
-        self.r_perp = 16.65552296e-10       
-        self.r_parr = 8.130217003e-10
         
-        self.visc = 1.0e-3*(-0.00625*temp+2.425)
+        np.random.seed()
+        
+        self.r_perp = 16.60409997886e-10       
+        self.r_parr = 4.9062966e-10
+        
+        self.prefact = 3.92904692e-03
+        self.beta = 9.96973104e+01
+        self.c = -4.92846450e-03
+        
+        #self.visc = 1.0e-3*(-0.00625*temp+2.425)
+        self.visc = self.prefact*np.exp(self.beta/temp)+self.c
+        
         
         self.convert = 1.0e3/1.76e-11
 
@@ -484,7 +478,49 @@ def inertia_tensor(data):
 def rad_tensor_mol_axis(transform_mol,transform_dmj,tensor):
     return transform(transform_mol,(transform(inv(transform_dmj),tensor)))
 
-def calc_yield(tau_c,y,ks,kt,lamb):
+def multiprocess_lifetime(processes,number,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
+    samples = np.int((np.float(number)/np.float(processes)))
+    pool = mp.Pool(processes=processes)
+    results = [pool.apply_async(object_function_call_lifetime, args=(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp)) for i in range(samples)]
+    h = [p.wait() for p in results]
+    results = [p.get(timeout=1) for p in results]
+    #pool.close()
+    pool.terminate()
+    pool.join()
+    
+    return np.sum(results)
+
+def object_function_call_lifetime(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
+    #np.random.seed(1)
+    # Define class       
+    relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp)
+    # Calculate triplet yield
+    lifetime = relaxation.lifetime()
+
+    return np.float(lifetime)
+
+def multiprocess_yield(processes,number,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
+    samples = np.int((np.float(number)/np.float(processes)))
+    pool = mp.Pool(processes=processes)
+    results = [pool.apply_async(object_function_call_yield, args=(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp)) for i in range(samples)]
+    h = [p.wait() for p in results]
+    results = [p.get(timeout=1) for p in results]
+    #pool.close()
+    pool.terminate()
+    pool.join()
+    
+    return results
+
+def object_function_call_yield(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp):
+    #np.random.seed(1)
+    # Define class       
+    relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,field,J,dj,ks,kt,exchange_rate,lamb,temp)
+    # Calculate triplet yield
+    trip = relaxation.triplet_yield()
+    
+    return trip
+
+def calc_yield_parallel(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J):
 
 
     # Define variables, initial frame
@@ -521,13 +557,13 @@ def calc_yield(tau_c,y,ks,kt,lamb):
     rad_fram_aniso_hyperfine_2[5] = array_construct(0.0352,0.034,-0.0692,0.0,0.0,0.0)
 
     # axis frames
-    data_xyz = np.loadtxt('dmj-an-pe1p-ndi-opt.txt',delimiter=',')
+    data_xyz = np.loadtxt('dmj-an-fn1-ndi-opt.txt',delimiter=',')
     transform_mol = inertia_tensor(data_xyz)
     
-    dmj_xyz = np.loadtxt('dmj_in_pe1p.txt',delimiter=',')
+    dmj_xyz = np.loadtxt('dmj_in_fn1.txt',delimiter=',')
     transform_dmj = inertia_tensor(dmj_xyz)
     
-    ndi_xyz = np.loadtxt('NDI_in_pe1p.txt',delimiter=',')
+    ndi_xyz = np.loadtxt('NDI_in_fn1.txt',delimiter=',')
     transform_ndi = inertia_tensor(ndi_xyz)
     
     # Convert to molecular frame
@@ -539,11 +575,10 @@ def calc_yield(tau_c,y,ks,kt,lamb):
     
     
     # for n=1 
-    radius = 24.044e-10
+    radius =  20.986e-10 
     
     cnst = (1.0e3*1.25663706e-6*1.054e-34*1.766086e11)/(4.0*np.pi*radius**3)
     aniso_dipolar = np.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,-2.0]])*cnst
-    print(cnst)
     
     # Isotropic components
     g1_iso = 2.0031
@@ -557,91 +592,120 @@ def calc_yield(tau_c,y,ks,kt,lamb):
     
     spin_numbers_1 = np.array([[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.0]])
     spin_numbers_2 = np.array([[0.5,0.5,0.5,0.5,1.0,1.0]])
-    
-    #tau_c = 0.03665841
-    #dj = 6.88034966
-    J = 7.85
-    #lamb = 1.66422831e-02
-    
-    dj = np.sqrt(y/tau_c)
-    
 
-    temp_dat = np.loadtxt('pep_t_310.txt',delimiter=',')
-    temp = 310.0
     field = np.reshape(temp_dat[:,0],(len(temp_dat[:,0])))
     data_y = np.reshape(temp_dat[:,1],(len(temp_dat[:,1])))
-    triplet_yield = np.zeros_like(field)
-    standard_error = np.zeros_like(field)     
+    
+    sampled_field = np.linspace(0.0,120.0,20)
+    triplet_yield = np.zeros_like(sampled_field)
+    standard_error = np.zeros_like(sampled_field)     
     
     exchange_rate = 1.0e0/(2.0e0*tau_c)
+    compound_error = np.zeros_like(sampled_field)  
     
-    num_samples = 3
+    processes = 4
+    num_samples = 800
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
-
-    lifetime_exp = 8.4374
+    w = 5.0 
     
-    lifetime = 0.0
-    # zero field lifetime
-    for index, item in enumerate(samples):
-            np.random.seed(index)
-            relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,0.0,J,dj,ks,kt,exchange_rate,lamb,temp)
-            lifetime += relaxation_0.lifetime()
-    lifetime = lifetime/np.float(num_samples)
-    print('lifetime',lifetime)
+#--------------------------------------------------------------------------------------------------------------------------------------
+#zero field lifetime
+    lifetime_zero = multiprocess_lifetime(processes,num_samples,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,0.0,J,dj,ks,kt,exchange_rate,lamb,temp)
+    lifetime_zero = lifetime_zero/np.float(num_samples)
     
-    for index_field,item_field in enumerate(field):
-        total_t = 0.0
-        for index, item in enumerate(samples):
-            np.random.seed(index)
-            # Define class       
-            relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,dj,ks,kt,exchange_rate,lamb,temp)
-            # Calculate triplet yield
-            trip[index] = relaxation.triplet_yield()
-            total_t += trip[index]
-            
-        triplet_yield[index_field] = total_t
+    lifetime_dif_zero = lifetime_zero - lifetime_exp_zero
+    w_0 = w/lifetime_exp_zero
+    print('lifetime at zero field',lifetime_zero)
+    
+#--------------------------------------------------------------------------------------------------------------------------------------
+#resonance field lifetime (B=2J)
+    lifetime_res= multiprocess_lifetime(processes,num_samples,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,2.0*J,J,dj,ks,kt,exchange_rate,lamb,temp)
+    lifetime_res = lifetime_res/np.float(num_samples)
+    
+    lifetime_dif_res = lifetime_res - lifetime_exp_res
+    w_res = w/lifetime_exp_res
+    print('lifetime at res',lifetime_res)
+#--------------------------------------------------------------------------------------------------------------------------------------
+# High field lifetime 
+    lifetime_high= multiprocess_lifetime(processes,num_samples,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,100.0,J,dj,ks,kt,exchange_rate,lamb,temp)
+    lifetime_high = lifetime_high/np.float(num_samples)
+    
+    lifetime_dif_high = lifetime_high - lifetime_exp_high
+    w_h = w/lifetime_exp_high
+    print('lifetime at high field',lifetime_high)
+#--------------------------------------------------------------------------------------------------------------------------------------
+    
+    
+    for index_field,item_field in enumerate(sampled_field):
+        
+        trip = multiprocess_yield(processes,num_samples,aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,dj,ks,kt,exchange_rate,lamb,temp)
+        triplet_yield[index_field] = np.sum(trip)/np.float(num_samples)
         standard_error[index_field] = sts.sem(trip)
-    
-    standard_error = standard_error/(triplet_yield[0])
+         compound_error[index_field] = np.sqrt(standard_error[0]*standard_error[0]*((1.0/triplet_yield[0])**2 + (standard_error[index_field]*standard_error[index_field]*(triplet_yield[index_field]/triplet_yield[0])**2)))
+         
+    compound_error[0] = 0.0
     triplet_yield = triplet_yield/(triplet_yield[0])
     
-    lifetime_dif = lifetime - lifetime_exp
-    w1 = 10.0/lifetime_exp
-    w2 = 10.0/lifetime_exp
+    tck = interpolate.splrep(sampled_field, triplet_yield, s=0)
+    xnew = field
+    ynew = interpolate.splev(xnew, tck, der=0)
+    # lagrange type terms to ensure that the experimental lifetime is correctly calculated and that Kt is greater than Ks
+    val = np.float(10.0*np.sum(((ynew)-(data_y-data_y[0]+1.0))*((ynew)-(data_y-data_y[0]+1.0))) + (lifetime_dif_zero*w_0)**4 + (lifetime_dif_res*w_res)**4 + (lifetime_dif_high*w_h)**4)
     
-    val = np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0))) + (lifetime_dif*w1)**2 + (lifetime_dif*w2)**4
+    with open("fn1_"+str(temp)+"_yield.txt","w+") as ff:
+        ff.write("field\n")
+        for item in sampled_field:
+            ff.write(str(item)+',')
+        ff.write('\n')
+        ff.write("Triplet Yield\n")
+        for item in triplet_yield:
+            ff.write(str(item)+',')
+        ff.write('\n')
+        ff.write("Standard_error\n")
+        for item in standard_error:
+            ff.write(str(item)+',')
     
+    with open("fn1_"+str(temp)+"_lifetime.txt","w+") as fl:
+        fl.write("Zero field lifetime\n")
+        fl.write(str(lifetime_zero)+'\n')
+        fl.write("Resonance field lifetime\n")
+        fl.write(str(lifetime_res)+'\n')
+        fl.write("High field lifetime\n")
+        fl.write(str(lifetime_high))
     
-    plt.plot(field,triplet_yield,'o--')
-    plt.plot(field,(data_y-data_y[0]+1.0),'o')
-    plt.fill_between(field, triplet_yield - 2.0*standard_error, triplet_yield + 2.0*standard_error,
-                 color='salmon', alpha=0.4)
-    plt.ylabel('Triplet Yield')
-    plt.title('Rotational Relaxation')
-    plt.xlabel('field')
-    plt.show()
-    plt.clf()
-    
-    print(tau_c,dj,ks,kt,lamb)
-    print('_____',val,'_____')       
+    print('tau_c,dj,lamb,ks,kt')
+    print(tau_c,dj,lamb,ks,kt)
+    print()
+    print(val)
+     
     return val
 
-t0 = time.clock()
-#np.random.seed()
+np.random.seed()
+# x0 = tau_c,dj,lamb,ks,kt
+bnds = [(1.0e-5, 1.0e-2),(1.0e0, 2.0e2),(1.0e-5, 0.10),(1.0e-3, 1.0e0),(1e-3, 1.0e1)]
+temp = 303.0
 
-cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]})
-bnds = ((1e-16, None), (1e-16, None), (1e-16, None), (1e-16, None), (1e-16, None))
-x0 = [0.60146991, 3.54157787, 0.06881075, 0.06881075, 0.56546772]
+with open(str(temp)+"_dat_fn1.txt","w+") as p:
+    with open(str(temp)+"_results_fn1.txt","w+") as f:
+        
+        f.write("x0 = tau_c,dj,lamb,ks,kt\n")
+        
+        #x0 = [0.0006563236512232049,35.89154898038297,0.005,0.09932507514529408,0.9037783287618298]
+        temp_dat = np.loadtxt('t_303.txt',delimiter=',')
 
-res = (minimize(lambda x: calc_yield(*x),x0, method='SLSQP',bounds=bnds,constraints=cons))
-print(res)
+        lifetime_exp_zero = 3.9824680115438866
+        lifetime_exp_res = 1.2878152979810005
+        lifetime_exp_high = 4.1457005816693995
 
-print(res.x)
-
-print('----------------------------------')
-print('**********************************')
-print(time.clock() - t0)
-print('**********************************')
-print('----------------------------------')
+        J = 22.59
+        
+        res = differential_evolution(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield_parallel(*x1,x2,x3,x4,x5,x6,x7),bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J), maxiter= 50)
+        f.write("\n")
+        f.write("x0 for T=303k\n")
+        f.write(str(res)+"\n")
+        for i in range(0,len(res.x)):
+            p.write(str(res.x[i])+",")
+        p.write(str(temp)+"\n")
+        
 

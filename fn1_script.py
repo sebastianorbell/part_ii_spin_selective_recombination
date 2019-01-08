@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from scipy.linalg import inv as inv
 from scipy.optimize import minimize
 import scipy.stats as sts
+from scipy import interpolate
 
 class rotational_relaxation:
     
@@ -550,12 +551,14 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     
     field = np.reshape(temp_dat[:,0],(len(temp_dat[:,0])))
     data_y = np.reshape(temp_dat[:,1],(len(temp_dat[:,1])))
-    triplet_yield = np.zeros_like(field)
-    standard_error = np.zeros_like(field)     
+    
+    sampled_field = np.linspace(0.0,120.0,20)
+    triplet_yield = np.zeros_like(sampled_field)
+    standard_error = np.zeros_like(sampled_field) 
     
     exchange_rate = 1.0e0/(2.0e0*tau_c)
     
-    num_samples = 2
+    num_samples = 16
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
     w =5.0 
@@ -609,7 +612,7 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
 #--------------------------------------------------------------------------------------------------------------------------------------
   
     
-    for index_field,item_field in enumerate(field):
+    for index_field,item_field in enumerate(sampled_field):
         total_t = 0.0
         for index, item in enumerate(samples):
             np.random.seed(index)
@@ -625,13 +628,18 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     standard_error = standard_error/(triplet_yield[0])
     triplet_yield = triplet_yield/(triplet_yield[0])
     
+    tck = interpolate.splrep(sampled_field, triplet_yield, s=0)
+    xnew = field
+    ynew = interpolate.splev(xnew, tck, der=0)
+    
     # lagrange type terms to ensure that the experimental lifetime is correctly calculated and that Kt is greater than Ks
-    val = np.float(10.0*np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0))) + (lifetime_dif_zero*w_0)**4 + (lifetime_dif_res*w_res)**4 + (lifetime_dif_high*w_h)**4)
+    val = np.float(2.0*np.sum(((ynew)-(data_y-data_y[0]+1.0))*((ynew)-(data_y-data_y[0]+1.0))) + (lifetime_dif_zero*w_0)**4 + (lifetime_dif_res*w_res)**4 + (lifetime_dif_high*w_h)**4)
     
     plt.clf()
-    plt.plot(field,triplet_yield,'o--')
+    plt.plot(sampled_field,triplet_yield,'o--')
+    plt.plot(field,ynew,'o')
     plt.plot(field,(data_y-data_y[0]+1.0),'o')
-    plt.fill_between(field, triplet_yield - 2.0*standard_error, triplet_yield + 2.0*standard_error,
+    plt.fill_between(sampled_field, triplet_yield - 2.0*standard_error, triplet_yield + 2.0*standard_error,
                  color='salmon', alpha=0.4)
     plt.ylabel('Relative Triplet Yield')
     plt.title('FN1 at (K) '+str(temp))
@@ -663,7 +671,7 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
 t0 = time.clock()
 #np.random.seed()
 # x0 = tau_c,dj,lamb,ks,kt
-bnds = ((1e-5, 1.0e-2),(1.0e-6, 1.0e3),(1.0e-10, 0.10),(1.0e-6, 1.0e0),(1e-6, 1.0e0))
+bnds = ((1e-5, 1.0e-2),(1.0e-6, 1.0e3),(1.0e-10, 0.20),(1.0e-6, 1.0e0),(1e-6, 1.0e1))
 #tau_c = 1.0e-3
 
 with open("test_fn1.txt","w+") as p:
@@ -671,7 +679,7 @@ with open("test_fn1.txt","w+") as p:
         f.write("x0 = y,ks,kt,lamb\n")
         
         #---------------------------------------------------------------------------------------------------------------------------
-
+        """
         x0 = [0.0005723367420829245,61.26208867322158,0.005,0.16694391064910116,1.5]
         #ks = 0.3848
         #kt = 0.2731
@@ -742,11 +750,11 @@ with open("test_fn1.txt","w+") as p:
         for i in range(0,len(res.x)):
             p.write(str(res.x[i])+",")
         p.write(str(temp)+"\n")
-        
+        """    
         #---------------------------------------------------------------------------------------------------------------------------
         
         #x0 = [0.5,0.053144]
-        x0 = [0.0004590055248221585,51.724539045868404,0.005,0.08838233586780461,1.4999998569172885]
+        x0 = [0.000142342899215898, 103.04217615672749, 0.1, 0.21550986797165267, 2.00000001]
         #ks = 0.203
         #kt = 0.5361
         temp_dat = np.loadtxt('t_313.txt',delimiter=',')
@@ -768,7 +776,7 @@ with open("test_fn1.txt","w+") as p:
             p.write(str(res.x[i])+",")
         p.write(str(temp)+"\n")
        
-        
+        """      
         #---------------------------------------------------------------------------------------------------------------------------
         
         #x0 = [0.5,0.03822]
@@ -827,3 +835,4 @@ print(time.clock() - t0)
 print('**********************************')
 print('----------------------------------')
 
+"""
