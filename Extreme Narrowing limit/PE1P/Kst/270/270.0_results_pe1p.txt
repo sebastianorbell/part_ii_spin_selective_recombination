@@ -1,0 +1,10 @@
+x0 = x,ks,kt,ktsd
+
+x0 for T=330k
+     fun: 0.07215421603478052
+     jac: array([ 1.40145950e-03, -1.09190434e-05,  3.20174443e-05, -1.64951386e-05])
+ message: 'Maximum number of iterations has been exceeded.'
+    nfev: 795
+     nit: 10
+ success: False
+       x: array([1.00000000e-06, 1.70533142e-02, 4.20996309e+00, 6.87047751e-01])

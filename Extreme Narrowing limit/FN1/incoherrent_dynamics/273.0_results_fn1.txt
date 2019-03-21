@@ -1,0 +1,10 @@
+x0 = ks,kt,kstd
+
+x0 for T=273k
+     fun: 86.76626917986601
+     jac: array([-2.46427589e-01, -1.84741111e-05, -1.23235111e-01])
+ message: 'Optimization terminated successfully.'
+    nfev: 551
+     nit: 10
+ success: True
+       x: array([100.        ,   0.46699471,  10.        ])

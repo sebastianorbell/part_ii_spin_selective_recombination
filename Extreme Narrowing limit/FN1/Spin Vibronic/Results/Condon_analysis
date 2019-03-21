@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Feb 11 11:40:28 2019
+
+@author: sebastianorbell
+"""
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import differential_evolution
+from scipy.optimize import minimize
+from scipy import special
+
+def fitting(j0,del_s,lam_s,e_s,del_t,lam_t,e_t):
+    # del_s,lam_s,e_s,del_t,lam_t,e_t
+    #del_s,lam_s,e_s,del_t,lam_t,e_t = -1.14778703,  0.19244124,  0.54912432,-0.55190236,  0.02324572, -0.69325295
+    
+    temperature = [273.0,296.0,303.0,313.0,333.0,353.0]
+    ks_exp = [0.15727827765561803,0.1087877337106174,0.09840286449049118,0.08291184648567401,0.059900158766906686,0.04876259390539783]
+    kt_exp = [ 4.087967244484629,5.426598033692157,3.7458083865326204,6.460483498447525,5.927317227790041,6.594973593383234]
+    J = [20.25,20.77102,22.59,23.73, 28.95,35.41]
+
+    kb = 1.0
+    
+    ks = np.zeros_like(temperature)
+    kt = np.zeros_like(temperature)
+    js = np.zeros_like(temperature)
+    jt = np.zeros_like(temperature)
+    
+    for index, temp in enumerate(temperature):
+        
+        #del_s = As + Bs*temp
+        #del_t = At + Bt*temp
+        
+        ks[index] = del_s*del_s*np.sqrt(np.pi/kb*temp*lam_s)*np.exp((lam_s-e_s)/4.0*lam_s*kb*temp)
+        
+        kt[index] = del_t*del_t*np.sqrt(np.pi/kb*temp*lam_t)*np.exp((lam_t-e_t)/4.0*lam_t*kb*temp)
+        
+        js[index] = 0.25*del_s*del_s*np.sqrt(np.pi/kb*temp*lam_s)*np.exp((lam_s-e_s)/4.0*lam_s*kb*temp)*special.erfi((e_s-lam_s)/2.0*np.sqrt(kb*temp*lam_s))
+        
+        jt[index] = 0.25*del_t*del_t*np.sqrt(np.pi/kb*temp*lam_t)*np.exp((lam_t-e_t)/4.0*lam_t*kb*temp)*special.erfi((e_t-lam_t)/2.0*np.sqrt(kb*temp*lam_t))
+        
+    chai_square = np.sum((kt - kt_exp)**2) + np.sum((ks - ks_exp)**2) + np.sum(((js-jt)+j0-J)**2)
+    
+    plt.clf()
+    plt.plot(temperature,kt_exp)
+    plt.plot(temperature,kt)
+    plt.show()
+
+    plt.clf()
+    plt.plot(temperature,ks_exp)
+    plt.plot(temperature,ks)
+    plt.show()    
+
+    plt.clf()
+    plt.plot(temperature,J)
+    plt.plot(temperature,js-jt+j0)
+    plt.show()
+    
+    print(chai_square)
+    print(j0)
+    print('del_s,lam_s,e_s,del_t,lam_t,e_t')
+    print(del_s,lam_s,e_s,del_t,lam_t,e_t)
+    
+    if type(chai_square) != float:
+        chai_square = 1.0e6
+     #   input("Press Enter to continue...")
+        
+    return chai_square
+
+def fitting_extra_terms(j0,As,Bs,lam_s,e_s,At,Bt,lam_t,e_t):
+    #At,Bt,lam_t,e_t = 0.004469405930762079, 0.0035606677660650955, 0.012454512814731677, -0.31330396395597543
+    #As,Bs,lam_s,e_s = 0.9988256255656373, 0.00918979594807664, 0.10177555587641193, 0.871520756383195
+    
+    temperature = [273.0,296.0,303.0,313.0,333.0,353.0]
+    ks_exp = [0.15727827765561803,0.1087877337106174,0.09840286449049118,0.08291184648567401,0.059900158766906686,0.04876259390539783]
+    kt_exp = [ 4.087967244484629,5.426598033692157,3.7458083865326204,6.460483498447525,5.927317227790041,6.594973593383234]
+    J = [20.25,20.77102,22.59,23.73, 28.95,35.41]
+
+    kb = 1.0
+    
+    ks = np.zeros_like(temperature)
+    kt = np.zeros_like(temperature)
+    js = np.zeros_like(temperature)
+    jt = np.zeros_like(temperature)
+    
+    for index, temp in enumerate(temperature):
+        
+        d_s = As + Bs*temp
+        d_t = At + Bt*temp
+        
+        ks[index] = d_s*np.sqrt(np.pi/kb*temp*lam_s)*np.exp((lam_s-e_s)/4.0*lam_s*kb*temp)
+        
+        kt[index] = d_t*np.sqrt(np.pi/kb*temp*lam_t)*np.exp((lam_t-e_t)/4.0*lam_t*kb*temp)
+        
+        js[index] = 0.25*d_s*np.sqrt(np.pi/kb*temp*lam_s)*np.exp((lam_s-e_s)/4.0*lam_s*kb*temp)*special.erfi((e_s-lam_s)/2.0*np.sqrt(kb*temp*lam_s))
+        
+        jt[index] = 0.25*d_t*np.sqrt(np.pi/kb*temp*lam_t)*np.exp((lam_t-e_t)/4.0*lam_t*kb*temp)*special.erfi((e_t-lam_t)/2.0*np.sqrt(kb*temp*lam_t))
+        
+    chai_square = np.sum(((ks - ks_exp)**2)/ks_exp)  + np.sum(((kt - kt_exp)**2)/kt_exp) + np.sum((((js-jt)+j0-J)**2)/J)
+    
+    plt.clf()
+    plt.plot(temperature,ks_exp)
+    plt.plot(temperature,ks)
+    plt.xlabel("Temperature (K)")
+    plt.ylabel("Ks")
+    plt.show()
+
+    plt.clf()
+    plt.plot(temperature,kt_exp)
+    plt.plot(temperature,kt)
+    plt.xlabel("Temperature (K)")
+    plt.ylabel("Kt")
+    plt.show()    
+
+    plt.clf()
+    plt.plot(temperature,J)
+    plt.plot(temperature,js-jt+j0)
+    plt.xlabel("Temperature (K)")
+    plt.ylabel("J")
+    plt.show()
+    
+    print('chai_square',chai_square)
+    print('-------------------------------------------------------------------')
+    print("FN1")
+    print('At,Bt,lam_t,e_t')
+    print(At,Bt,lam_t,e_t)
+    print('As,Bs,lam_s,e_s')
+    print(As,Bs,lam_s,e_s)
+    print('j0',j0)
+    
+    return chai_square
+
+#[del_s,lam_s,e_s] = [-1.14778703  0.19244124  0.54912432]
+#[del_t,lam_t,e_t] = [-0.55190236  0.02324572 -0.69325295]
+bp = (1.0e-3,1.0e0)
+bn = (-1.0e0,1.0e-3)
+#bnds = [(1.0e-2,3.0e1),bn,bp,bp,bn,bp,bn]
+#bnds = [bp]
+lim = 1.0
+x = [23.10298159246572,-1.14778703,  0.19244124,  0.54912432,-0.55190236,  0.02324572, -0.69325295]
+bnds = [(x[i]+x[i]*lim,x[i]-x[i]*lim) for i in range(len(x))]
+#res = differential_evolution(lambda x1:fitting(*x1),bounds=bnds,maxiter=1000)
+#res = minimize(lambda x0:fitting(*x0),x0=x0, method = 'dogleg' )
+#print(res.x)
+x_extra = [24.055793708801755,0.9988256255656373, 0.00918979594807664, 0.10177555587641193, 0.871520756383195,0.004469405930762079, 0.0035606677660650955, 0.012454512814731677, -0.31330396395597543]
+x_min = [9.63769317166707,0.30436952441949916, 0.003992353858955549, 0.03430982689119304, 1.7648524372988093,0.0013653404198895062, 0.002276658596155449, 0.022276253143936903, -0.2374435313612862]
+bounds = [(x_min[i]-x_min[i]*lim,x_min[i]+x_min[i]*lim) for i in range(len(x_min))]
+bounds[-1] = (x_min[-1]*2.0,0.0)
+#res = differential_evolution(lambda x1:fitting_extra_terms(*x1),bounds=bounds,maxiter=1000)
+#res = minimize(lambda x0:fitting_extra_terms(*x0),x0=x_min,bounds = bounds)
+
+
+fitting_extra_terms(9.63769317166707,0.30436952441949916, 0.003992353858955549, 0.03430982689119304, 1.7648524372988093,0.0013653404198895062, 0.002276658596155449, 0.022276253143936903, -0.2374435313612862)

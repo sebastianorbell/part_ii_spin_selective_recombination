@@ -1,0 +1,9 @@
+x0 = lamb,kstd
+
+x0 for T=273k
+     fun: 182.19661861200984
+ message: 'Maximum number of iterations has been exceeded.'
+    nfev: 384
+     nit: 10
+ success: False
+       x: array([0.00244579, 0.60971379])
