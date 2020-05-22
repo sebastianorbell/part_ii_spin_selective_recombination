@@ -26,7 +26,7 @@ class rotational_relaxation:
         # declare constants and identities
 
         self.r_perp = 16.60409997886e-10       
-        self.r_parr = 4.9062966e-10
+        self.r_parr = 8.130e-10
         
         self.prefact = 3.92904692e-03
         self.beta = 9.96973104e+01
@@ -536,12 +536,12 @@ def calc_yield(kstd,x,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lif
     field = np.reshape(temp_dat[:,0],(len(temp_dat[:,0])))
     data_y = np.reshape(temp_dat[:,1],(len(temp_dat[:,1])))
     
-    sampled_field = np.linspace(0.0,100.0,30)
+    sampled_field = np.linspace(0.0,100.0,40)
     triplet_yield = np.zeros_like(sampled_field)
     standard_error = np.zeros_like(sampled_field)     
     compound_error = np.zeros_like(sampled_field)  
 
-    num_samples = 300
+    num_samples = 1000
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
     
@@ -628,6 +628,41 @@ def calc_yield(kstd,x,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lif
     print('r square for '+str(temp)+'=',r_square)
     #----------------------------------------------
     
+    with open("dat_pe1p_kst_"+str(np.int(temp))+".txt","w+") as p:
+        
+        for i in range(0,len(triplet_yield)):
+            p.write(str(triplet_yield[i]))
+            if (i<(len(triplet_yield)-1)):
+                p.write(',')
+    
+        p.write("\n")
+        for i in range(0,len(sampled_field)):
+            p.write(str(sampled_field[i]))
+            if (i<(len(sampled_field)-1)):
+                p.write(',')
+    
+    j_mat = np.array([0.0,2.0*j_exp,100.0])
+    lifetime_experiment = np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high])
+    
+    with open("lifetime_pe1p_kst_"+str(np.int(temp))+".txt","w+") as p:
+        
+        for i in range(0,len(lt)):
+            p.write(str(lt[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+    
+        p.write("\n")
+        for i in range(0,len(lt)):
+            p.write(str(j_mat[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+        
+        p.write("\n")
+        for i in range(0,len(lt)):
+            p.write(str(lifetime_experiment[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+                
     plt.clf()
     #plt.plot(field,ynew,'o')
     plt.plot(sampled_field,triplet_yield,'o--')

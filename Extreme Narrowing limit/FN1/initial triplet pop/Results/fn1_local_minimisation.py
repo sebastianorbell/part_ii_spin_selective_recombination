@@ -532,16 +532,15 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     field = np.reshape(temp_dat[:,0],(len(temp_dat[:,0])))
     data_y = np.reshape(temp_dat[:,1],(len(temp_dat[:,1])))
     
-    sampled_field = np.linspace(0.0,120.0,20)
+    sampled_field = np.linspace(0.0,120.0,40)
     triplet_yield = np.zeros_like(sampled_field)
     standard_error = np.zeros_like(sampled_field)     
     compound_error = np.zeros_like(sampled_field)  
 
 
-    num_samples = 300
+    num_samples = 1000
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
-    w =5.0 
     
 #--------------------------------------------------------------------------------------------------------------------------------------
 #zero field lifetime
@@ -556,8 +555,7 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     zero_error = sts.sem(zero) 
     lifetime_zero = np.float(lifetime_zero)/np.float(num_samples)
     lifetime_dif_zero = lifetime_zero - lifetime_exp_zero
-    w_0 = w/lifetime_exp_zero
-    
+    print('lifetime at zero field % difference at T = '+str(temp),(lifetime_dif_zero/lifetime_exp_zero)*100.0)    
     
 #--------------------------------------------------------------------------------------------------------------------------------------
 #resonance field lifetime (B=2J)
@@ -572,7 +570,7 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     res_error = sts.sem(res) 
     lifetime_res = np.float(lifetime_res)/np.float(num_samples)
     lifetime_dif_res = lifetime_res - lifetime_exp_res
-    w_res = w/lifetime_exp_res
+    print('lifetime at resonant field % difference at T = '+str(temp),(lifetime_dif_res/lifetime_exp_res)*100.0)
     
 #--------------------------------------------------------------------------------------------------------------------------------------
 # High field lifetime 
@@ -587,7 +585,7 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     high_error = sts.sem(high) 
     lifetime_high = np.float(lifetime_high)/np.float(num_samples)
     lifetime_dif_high = lifetime_high - lifetime_exp_high
-    w_h = w/lifetime_exp_high
+    print('lifetime at high field % difference at T = '+str(temp),(lifetime_dif_high/lifetime_exp_high)*100.0)
     
 #--------------------------------------------------------------------------------------------------------------------------------------
   
@@ -626,7 +624,14 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     lt_var = (mean_lt - lt)*(mean_lt - lt)
     
     val =  0.5*np.float(((len(sampled_field)-1.0)/(len(sampled_field)+1.0))*(np.sum(mary)/np.sum(mary_var)) + (2.0/(len(sampled_field)+1.0))*(np.sum(sq_lt_diff)/np.sum(lt_var)))
-
+    
+    dat_mean = np.sum(data_y-data_y[0]+1.0)/np.float(len(data_y))
+    mean_diff = ((dat_mean)-(data_y-data_y[0]+1.0))*((dat_mean)-(data_y-data_y[0]+1.0))
+    
+    r_square = 1 - np.sum(mary)/np.sum(mean_diff)
+    print('r square for '+str(temp)+'=',r_square)
+    
+    
     plt.clf()
     #plt.plot(field,ynew,'o')
     plt.plot(sampled_field,triplet_yield,'o--')
@@ -658,116 +663,203 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
 
 np.random.seed()
 # x0 = lamb,ks,kt,kstd
-bnds = [(1.0e-4, 0.3),(1.0e-3, 1.0e0),(1e-3, 1.0e2),(1.0e-5,1.0e2)]
+bnds = [(1.0e-4, 0.4),(1.0e-3, 1.0e0),(1e-3, 1.0e2),(1.0e-5,1.0e2)]
 
-results = np.loadtxt('fn1_no_kstd.txt',delimiter=',')
-                     #fn1_local_min.txt'
+def plot_functions(ks,kt):
+    
+    fn1_k_sin = np.loadtxt('fn1_sin.txt',delimiter=',')
+    fn1_k_trip = np.loadtxt('fn1_trip.txt',delimiter=',')
 
-with open("dat_fn1.txt","w+") as p:
-    with open("results_fn1.txt","w+") as f:
-        f.write("x0 = lamb,ks,kt,kstd\n")     
-        #---------------------------------------------------------------------------------------------------------------------------
+    temp = np.array([273.0,296.0,303.0,313.0,333.0,353.0])
+    
+    
+    plt.clf()
+    plt.plot(fn1_k_sin[:,0],fn1_k_sin[:,1],'o',color = 'b',markerfacecolor='None')
+    plt.plot(1.0/temp,np.log(ks*(1.76e8)*np.sqrt(temp)),color = 'b',label='ks')
+
+
+    plt.plot(fn1_k_trip[:,0],fn1_k_trip[:,1],'o',color = 'red',markerfacecolor='None')
+    plt.plot(1.0/temp,np.log(kt*(1.76e8)*np.sqrt(temp)),color = 'red',label='kt')
+
+    plt.xlabel('1/T')
+    plt.ylabel('ln(kx*T^0.5)')
+    #plt.title('FN1 Model (i)')
+    plt.legend(bbox_to_anchor=(0.051, 0.89, 0.9, .10), loc=2,
+               ncol=7, mode="expand", borderaxespad=-2.)
+    plt.grid()
+    plt.savefig("FN1_lam_rm.pdf")
+    plt.show()
+    
+    plt.clf()
+    plt.plot(1.0/fn1_k_sin[:,0],((np.exp(fn1_k_sin[:,1])*np.sqrt(fn1_k_sin[:,0])*(1.0/1.76e8))),'o',color = 'b',markerfacecolor='None')
+    plt.plot(temp,ks,'--',color = 'b',label='ks')
+    plt.grid()
+    plt.show()
+    return
+
+def calculate(res):
+
+    temp = 273.0
+    temp_dat = np.loadtxt('t_273_new.txt',delimiter=',')
+    lifetime_exp_zero = 2.69043554319234
+    lifetime_exp_res = 1.1276501297107735
+    lifetime_exp_high = 2.631178193792446
+    J = 20.25
+    
+    calc_yield(results[0,0],results[0,1],results[0,2],results[0,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
+
+    
+    temp = 296.0
+    temp_dat = np.loadtxt('t_296_new.txt',delimiter=',')
+    lifetime_exp_zero = 3.4792399
+    lifetime_exp_res = 1.2823553391292937
+    lifetime_exp_high = 3.635305501796483
+    J = 20.7710
+    
+    #calc_yield(results[1,0],results[1,1],results[1,2],results[1,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
+    
+    temp = 303.0
+    temp_dat = np.loadtxt('t_303_new.txt',delimiter=',')
+    lifetime_exp_zero = 3.9824680115438866
+    lifetime_exp_res = 1.2878152979810005
+    lifetime_exp_high = 4.1457005816693995
+    J = 22.59
+    
+    #calc_yield(results[2,0],results[2,1],results[2,2],results[2,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
+    
+    temp = 313.0
+    temp_dat = np.loadtxt('t_313_new.txt',delimiter=',')
+    lifetime_exp_zero = 4.223719001138495
+    lifetime_exp_res = 1.3593913081127948
+    lifetime_exp_high = 4.649690269230726
+    J = 23.73
+    
+    #calc_yield(results[3,0],results[3,1],results[3,2],results[3,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
+    
+    temp = 333.0
+    temp_dat = np.loadtxt('t_333_new.txt',delimiter=',')
+    lifetime_exp_zero = 5.752641121675911
+    lifetime_exp_res = 1.4174868758031038
+    lifetime_exp_high = 6.347652948471806
+    J = 28.95        
+    
+    #calc_yield(results[4,0],results[4,1],results[4,2],results[4,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
+    
+    temp = 353.0
+    temp_dat = np.loadtxt('t_353_new.txt',delimiter=',')
+    lifetime_exp_zero = 7.049588177788923
+    lifetime_exp_res = 1.4796659908006953
+    lifetime_exp_high = 8.078488090136942
+    J = 35.41
+    
+    #calc_yield(results[5,0],results[5,1],results[5,2],results[5,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
+    
+    return
+
+def minimise_all():
+    with open("dat_fn1.txt","w+") as p:
+        with open("results_fn1.txt","w+") as f:
+            f.write("x0 = x,ks,kt,kstd\n")     
+            #---------------------------------------------------------------------------------------------------------------------------
+            
+            temp = 273.0
+            temp_dat = np.loadtxt('t_273_new.txt',delimiter=',')
+            lifetime_exp_zero = 2.69043554319234
+            lifetime_exp_res = 1.1276501297107735
+            lifetime_exp_high = 2.631178193792446
+            J = 20.25
+            #x0 = [0.1499999998918708 ,0.15727827765561803 ,4.087967244484629 ,2.599999947530394]
+            x0 = [0.0, 0.06828776346313506, 19.09157406437138, 1e-05]
+            
+            
+            res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x0,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))
+            #res = differential_evolution(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))
+            
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x273 = res.x
+            
+            temp = 296.0
+            temp_dat = np.loadtxt('t_296_new.txt',delimiter=',')
+            lifetime_exp_zero = 3.4792399
+            lifetime_exp_res = 1.2823553391292937
+            lifetime_exp_high = 3.635305501796483
+            J = 20.7710
+            
+            res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x273,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x296 = res.x     
+            
+            temp = 303.0
+            temp_dat = np.loadtxt('t_303_new.txt',delimiter=',')
+            lifetime_exp_zero = 3.9824680115438866
+            lifetime_exp_res = 1.2878152979810005
+            lifetime_exp_high = 4.1457005816693995
+            J = 22.59
+           
+            res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x296,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))       
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x303 = res.x
+            
+            temp = 313.0
+            temp_dat = np.loadtxt('t_313_new.txt',delimiter=',')
+            lifetime_exp_zero = 4.223719001138495
+            lifetime_exp_res = 1.3593913081127948
+            lifetime_exp_high = 4.649690269230726
+            J = 23.73
+            
+            res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x303,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))       
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x313 = res.x 
+            
+            temp = 333.0
+            temp_dat = np.loadtxt('t_333_new.txt',delimiter=',')
+            lifetime_exp_zero = 5.752641121675911
+            lifetime_exp_res = 1.4174868758031038
+            lifetime_exp_high = 6.347652948471806
+            J = 28.95        
+            
+            res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x313,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x333 = res.x 
+            
+            temp = 353.0
+            temp_dat = np.loadtxt('t_353_new.txt',delimiter=',')
+            lifetime_exp_zero = 7.049588177788923
+            lifetime_exp_res = 1.4796659908006953
+            lifetime_exp_high = 8.078488090136942
+            J = 35.41
+            
+            res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x333,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x353 = res.x  
         
-        temp = 273.0
-        temp_dat = np.loadtxt('t_273.txt',delimiter=',')
-        lifetime_exp_zero = 2.69043554319234
-        lifetime_exp_res = 1.1276501297107735
-        lifetime_exp_high = 2.631178193792446
-        J = 20.25
-        x0 = [0.1499999998918708 ,0.15727827765561803 ,4.087967244484629 ,2.599999947530394]
-        
-        calc_yield(results[0,0],results[0,1],results[0,2],results[0,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x0,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))
-        
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x273 = res.x"""
-        
-        temp = 296.0
-        temp_dat = np.loadtxt('t_296.txt',delimiter=',')
-        lifetime_exp_zero = 3.4792399
-        lifetime_exp_res = 1.2823553391292937
-        lifetime_exp_high = 3.635305501796483
-        J = 20.7710
-        
-        calc_yield(results[1,0],results[1,1],results[1,2],results[1,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x273,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x296 = res.x  """     
-        
-        temp = 303.0
-        temp_dat = np.loadtxt('t_303.txt',delimiter=',')
-        lifetime_exp_zero = 3.9824680115438866
-        lifetime_exp_res = 1.2878152979810005
-        lifetime_exp_high = 4.1457005816693995
-        J = 22.59
-        
-        calc_yield(results[2,0],results[2,1],results[2,2],results[2,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x296,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))       
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x303 = res.x """
-        
-        temp = 313.0
-        temp_dat = np.loadtxt('t_313.txt',delimiter=',')
-        lifetime_exp_zero = 4.223719001138495
-        lifetime_exp_res = 1.3593913081127948
-        lifetime_exp_high = 4.649690269230726
-        J = 23.73
-        
-        calc_yield(results[3,0],results[3,1],results[3,2],results[3,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x303,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))       
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x313 = res.x """
-        
-        temp = 333.0
-        temp_dat = np.loadtxt('t_333.txt',delimiter=',')
-        lifetime_exp_zero = 5.752641121675911
-        lifetime_exp_res = 1.4174868758031038
-        lifetime_exp_high = 6.347652948471806
-        J = 28.95        
-        
-        calc_yield(results[4,0],results[4,1],results[4,2],results[4,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x313,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x333 = res.x """
-        
-        temp = 353.0
-        temp_dat = np.loadtxt('t_353.txt',delimiter=',')
-        lifetime_exp_zero = 7.049588177788923
-        lifetime_exp_res = 1.4796659908006953
-        lifetime_exp_high = 8.078488090136942
-        J = 35.41
-        
-        calc_yield(results[5,0],results[5,1],results[5,2],results[5,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x333,bounds= bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x353 = res.x """
+    return
+
+results = np.loadtxt('fn1_new_lamb.txt',delimiter=',')
+#calculate(results)
+plot_functions(results[:,1],results[:,2])
+ 

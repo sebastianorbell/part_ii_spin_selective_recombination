@@ -1,0 +1,14 @@
+
+Python version  : 3.6.5
+compiler        : GCC 4.2.1 Compatible Clang 4.0.1 (tags/RELEASE_401/final)
+
+system     : Darwin
+release    : 18.2.0
+machine    : x86_64
+processor  : i386
+CPU count  : 4
+interpreter: 64bit
+
+
+Parallel time = 51.78468435800096
+Serial time = 56.12344151800062

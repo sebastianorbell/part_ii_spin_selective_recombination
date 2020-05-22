@@ -1,0 +1,11 @@
+x0 = dj,lamb,ks,kt
+tau_c = 0.005 constant
+
+x0 for T=273k
+     fun: 0.022905289820494744
+     jac: array([ 3.96488398e-06, -1.79370407e-07,  2.77208811e-07])
+ message: 'Optimization terminated successfully.'
+    nfev: 407
+     nit: 6
+ success: True
+       x: array([ 0.40618912,  0.02926809, 17.23372081])

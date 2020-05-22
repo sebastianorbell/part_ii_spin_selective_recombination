@@ -1,0 +1,10 @@
+x0 = tau_c,dj,lamb,ks,kt
+
+x0 for T=313k
+     fun: 14.989537657104416
+ message: 'Maximum number of iterations has been exceeded.'
+    nfev: 1005
+     nit: 10
+ success: False
+       x: array([4.67320581e-03, 6.53779790e+00, 1.94097389e-01, 2.06968182e-01,
+       5.56732163e+00])

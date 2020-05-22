@@ -1,0 +1,6 @@
+Zero field lifetime
+3.755311133222466
+Resonance field lifetime
+1.8244121808286502
+High field lifetime
+3.8168585999528863

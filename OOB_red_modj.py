@@ -246,8 +246,8 @@ plt.xlabel('field')
 plt.title('Redfield S.W.')
 plt.show()
 
-np.savetxt('sw_red.txt',trip)
-np.savetxt('field_range.txt',field)
+#np.savetxt('sw_red.txt',trip)
+#np.savetxt('field_range.txt',field)
         
         
         

@@ -542,7 +542,7 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     standard_error = np.zeros_like(sampled_field)     
     compound_error = np.zeros_like(sampled_field)  
 
-    num_samples = 300
+    num_samples = 100
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
     
@@ -559,7 +559,7 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     zero_error = sts.sem(zero) 
     lifetime_zero = np.float(lifetime_zero)/np.float(num_samples)
     lifetime_dif_zero = lifetime_zero - lifetime_exp_zero
-    
+    print('lifetime at zero field % difference at T = '+str(temp),(lifetime_dif_zero/lifetime_exp_zero)*100.0)    
     
 #--------------------------------------------------------------------------------------------------------------------------------------
 #resonance field lifetime (B=2J)
@@ -574,6 +574,7 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     res_error = sts.sem(res) 
     lifetime_res = np.float(lifetime_res)/np.float(num_samples)
     lifetime_dif_res = lifetime_res - lifetime_exp_res
+    print('lifetime at resonant field % difference at T = '+str(temp),(lifetime_dif_res/lifetime_exp_res)*100.0)
     
 #--------------------------------------------------------------------------------------------------------------------------------------
 # High field lifetime 
@@ -588,7 +589,7 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     high_error = sts.sem(high) 
     lifetime_high = np.float(lifetime_high)/np.float(num_samples)
     lifetime_dif_high = lifetime_high - lifetime_exp_high
-    
+    print('lifetime at high field % difference at T = '+str(temp),(lifetime_dif_high/lifetime_exp_high)*100.0)
 #--------------------------------------------------------------------------------------------------------------------------------------
   
     
@@ -623,7 +624,13 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     lt_var = (mean_lt - lt)*(mean_lt - lt)
     
     val =  0.5*np.float(((len(sampled_field)-1.0)/(len(sampled_field)+1.0))*(np.sum(mary)/np.sum(mary_var)) + (2.0/(len(sampled_field)+1.0))*(np.sum(sq_lt_diff)/np.sum(lt_var)))
-
+    
+    dat_mean = np.sum(data_y-data_y[0]+1.0)/np.float(len(data_y))
+    mean_diff = ((dat_mean)-(data_y-data_y[0]+1.0))*((dat_mean)-(data_y-data_y[0]+1.0))
+    
+    r_square = 1 - np.sum(mary)/np.sum(mean_diff)
+    print('r square for '+str(temp)+'=',r_square)
+    
     plt.clf()
     #plt.plot(field,ynew,'o')
     plt.plot(sampled_field,triplet_yield,'o--')
@@ -633,23 +640,57 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     plt.ylabel('Relative Triplet Yield')
     plt.title('PE1P at (K) '+str(temp))
     plt.xlabel('field (mT)')
-    plt.savefig("PE1p"+str(temp)+".pdf") 
+    #plt.savefig("PE1p_"+str(np.int(temp))+".pdf") 
     plt.show()
     
     plt.clf()
     plt.plot(np.array([0.0,2.0*J,100.0]),np.array([lifetime_zero,lifetime_res,lifetime_high]), label = 'Calculated')
     plt.plot(np.array([0.0,2.0*J,100.0]),np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high]),label = 'Experimental')
     plt.fill_between([0.0,2.0*J,100.0], np.array([lifetime_zero,lifetime_res,lifetime_high]) - 2.0*np.array([zero_error,res_error,high_error]), np.array([lifetime_zero,lifetime_res,lifetime_high]) + 2.0*np.array([zero_error,res_error,high_error]),
-                 color='g', alpha=0.4)
+                 color='g', alpha=0.3)
     plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=2,
            ncol=2, mode="expand", borderaxespad=-1.)
     plt.xlabel('Field (mT)')
     plt.ylabel('Lifetime')
     plt.title('PE1P extreme narrowing limit lifetime at (K) '+str(temp))
-    plt.savefig("PE1P_lifetimes_"+str(temp)+".pdf")
+    #plt.savefig("PE1P_lifetimes_"+str(np.int(temp))+".pdf")
     plt.show()
     print(val)
     return val
+
+
+def plot_functions(ks,kt):
+    
+    pe1p_k_sin = np.loadtxt('pe1p_ks.txt',delimiter=',')
+    pe1p_k_trip = np.loadtxt('pe1p_kt.txt',delimiter=',')
+    
+    temp = np.array([270.0,290.0,296.0,310.0,330.0,350.0])
+    J = np.array([11.616/2.0,13.0777/2.0,15.5193/2.0,16.1298/2.0, 18.3679/2.0,23.0478/2.0])
+
+    plt.clf()
+
+    plt.plot(1.0/temp,np.log(ks*(1.76e8)*np.sqrt(temp)),'--',color = 'b',label='ks')
+    plt.plot(pe1p_k_sin[:,0],(pe1p_k_sin[:,1]),'o',color = 'b',markerfacecolor='None')
+
+    plt.plot(1.0/temp,np.log(kt*(1.76e8)*np.sqrt(temp)),'--',color = 'red',label='kt')
+    plt.plot(pe1p_k_trip[:,0],(pe1p_k_trip[:,1]),'o',color = 'red',markerfacecolor='None')
+   
+    plt.xlabel('1/T')
+    plt.ylabel('ln(kx*T^0.5)')
+    #plt.title('PE1P Model --(ii), - -(iii)')
+    plt.legend(bbox_to_anchor=(0.051, 0.89, 0.9, .10), loc=2,
+               ncol=7, mode="expand", borderaxespad=-2.)
+    plt.grid()
+
+    #plt.savefig("rate_plot_pe1p_lam.pdf")
+    plt.show()
+    
+    plt.clf()
+    plt.plot(1.0/pe1p_k_sin[:,0],((np.exp(pe1p_k_sin[:,1])*np.sqrt(pe1p_k_sin[:,0])*(1.0/1.76e8))),'o',color = 'b',markerfacecolor='None')
+    plt.plot(temp,ks,'--',color = 'b',label='ks')
+    plt.grid()
+    plt.show()
+    return
 
 np.random.seed()
 # x0 = lamb,ks,kt,kstd
@@ -658,141 +699,200 @@ bnds = [(1.0e-4, 0.3),(1.0e-3, 1.0e0),(1e-3, 1.0e2),(1.0e-5,1.0e2)]
 
 results = np.loadtxt('local_min_PE1P.txt',delimiter=',')
 
-with open("dat_pe1p.txt","w+") as p:
-    with open("results_pe1p.txt","w+") as f:
-        f.write("x0 = lamb,ks,kt,ktsd\n")
-        #---------------------------------------------------------------------------------------------------------------------------
-        temp = 270.0
-        temp_dat = np.loadtxt('pep_t_270.txt',delimiter=',')
-        lifetime_exp_zero = 8.834911169733505
-        lifetime_exp_res = 1.8434403349016562
-        lifetime_exp_high = 12.919057695843426
-        J = 11.616/2.0
-        x = [0.0006538761075420563,0.019978808448047114,1.9587186740501816,2.5927762141525363]
-        
-                
-        calc_yield(results[0,0],results[0,1],results[0,2],results[0,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
-        
-        
-        f.write("\n")
-        f.write("x0 for T=330k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x270 = res.x
-        
-        """
-        
-        temp = 290.0
-        temp_dat = np.loadtxt('pep_t_290.txt',delimiter=',')
-        lifetime_exp_zero = 9.850813181812017
-        lifetime_exp_res = 2.095744981948086
-        lifetime_exp_high = 10.476062668545783
-        J = 13.0777/2.0
-        
-                
-        calc_yield(results[1,0],results[1,1],results[1,2],results[1,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x270,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
-        
-        f.write("\n")
-        f.write("x0 for T=290k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x290 = res.x
-        """
-        
-        temp = 296.0
-        temp_dat = np.loadtxt('pep_t_296.txt',delimiter=',')
-        lifetime_exp_zero = 11.125850840377698
-        lifetime_exp_res = 2.0385937159201912
-        lifetime_exp_high = 14.774653145254574
-        J = 15.5193/2.0
-        
-                
-        calc_yield(results[2,0],results[2,1],results[2,2],results[2,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x290,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
-        
-        f.write("\n")
-        f.write("x0 for T=296k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x296 = res.x
-        """
-        
-        temp = 310.0
-        temp_dat = np.loadtxt('pep_t_310.txt',delimiter=',')
-        lifetime_exp_zero = 10.688052807356911
-        lifetime_exp_res = 2.0093525777020207
-        lifetime_exp_high = 16.64817816298419
-        J = 16.1298/2.0
-        
-                
-        calc_yield(results[3,0],results[3,1],results[3,2],results[3,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x296,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
-        
-        f.write("\n")
-        f.write("x0 for T=310k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x310 = res.x
-        """
-        
-        temp = 330.0
-        temp_dat = np.loadtxt('pep_t_330.txt',delimiter=',')
-        lifetime_exp_zero = 8.834911169733505
-        lifetime_exp_res = 1.8434403349016562
-        lifetime_exp_high = 12.919057695843426
-        J = 18.3679/2.0
+plot_functions(results[:,1],results[:,2])
 
-        
-        calc_yield(results[4,0],results[4,1],results[4,2],results[4,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x310,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
+def calculate(results):
+    
+    temp = 270.0
+    temp_dat = np.loadtxt('pep_t_270.txt',delimiter=',')
+    lifetime_exp_zero = 8.834911169733505
+    lifetime_exp_res = 1.8434403349016562
+    lifetime_exp_high = 12.919057695843426
+    J = 11.616/2.0 
+            
+    calc_yield(results[0,0],results[0,1],results[0,2],results[0,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
 
-        f.write("\n")
-        f.write("x0 for T=330k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x330 = res.x
-        """
-        
-        temp = 350.0
-        temp_dat = np.loadtxt('pep_t_350.txt',delimiter=',')
-        lifetime_exp_zero = 9.731343150944575
-        lifetime_exp_res = 1.841454381233581
-        lifetime_exp_high = 15.695685358775423
-        J = 23.0478/2.0
+    
+    temp = 290.0
+    temp_dat = np.loadtxt('pep_t_290.txt',delimiter=',')
+    lifetime_exp_zero = 9.850813181812017
+    lifetime_exp_res = 2.095744981948086
+    lifetime_exp_high = 10.476062668545783
+    J = 13.0777/2.0
+    
+            
+    calc_yield(results[1,0],results[1,1],results[1,2],results[1,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
 
-        
-        calc_yield(results[5,0],results[5,1],results[5,2],results[5,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
-        """
-        res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x330,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
+    
+    temp = 296.0
+    temp_dat = np.loadtxt('pep_t_296.txt',delimiter=',')
+    lifetime_exp_zero = 11.125850840377698
+    lifetime_exp_res = 2.0385937159201912
+    lifetime_exp_high = 14.774653145254574
+    J = 15.5193/2.0
+    
+            
+    calc_yield(results[2,0],results[2,1],results[2,2],results[2,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
 
-        f.write("\n")
-        f.write("x0 for T=350k\n")
-        f.write(str(res)+"\n")
-        for i in range(0,len(res.x)):
-            p.write(str(res.x[i])+",")
-        p.write(str(temp)+"\n")
-        x350 = res.x
-        """
+    
+    temp = 310.0
+    temp_dat = np.loadtxt('pep_t_310.txt',delimiter=',')
+    lifetime_exp_zero = 10.688052807356911
+    lifetime_exp_res = 2.0093525777020207
+    lifetime_exp_high = 16.64817816298419
+    J = 16.1298/2.0
+    
+            
+    calc_yield(results[3,0],results[3,1],results[3,2],results[3,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
+
+    
+    temp = 330.0
+    temp_dat = np.loadtxt('pep_t_330.txt',delimiter=',')
+    lifetime_exp_zero = 8.834911169733505
+    lifetime_exp_res = 1.8434403349016562
+    lifetime_exp_high = 12.919057695843426
+    J = 18.3679/2.0
+
+    
+    calc_yield(results[4,0],results[4,1],results[4,2],results[4,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
+
+    
+    temp = 350.0
+    temp_dat = np.loadtxt('pep_t_350.txt',delimiter=',')
+    lifetime_exp_zero = 9.731343150944575
+    lifetime_exp_res = 1.841454381233581
+    lifetime_exp_high = 15.695685358775423
+    J = 23.0478/2.0
+
+    
+    calc_yield(results[5,0],results[5,1],results[5,2],results[5,3],temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+    
+    return
+    
+def minimise_all():
+    with open("dat_pe1p.txt","w+") as p:
+        with open("results_pe1p.txt","w+") as f:
+            f.write("x0 = lamb,ks,kt,ktsd\n")
+            #---------------------------------------------------------------------------------------------------------------------------
+            temp = 270.0
+            temp_dat = np.loadtxt('pep_t_270.txt',delimiter=',')
+            lifetime_exp_zero = 8.834911169733505
+            lifetime_exp_res = 1.8434403349016562
+            lifetime_exp_high = 12.919057695843426
+            J = 11.616/2.0
+            x = [0.0006538761075420563,0.019978808448047114,1.9587186740501816,2.5927762141525363]
+            
+                    
+            res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
+            
+            
+            f.write("\n")
+            f.write("x0 for T=330k\n")
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x270 = res.x
+            
+            
+            temp = 290.0
+            temp_dat = np.loadtxt('pep_t_290.txt',delimiter=',')
+            lifetime_exp_zero = 9.850813181812017
+            lifetime_exp_res = 2.095744981948086
+            lifetime_exp_high = 10.476062668545783
+            J = 13.0777/2.0
+            
+            res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x270,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
+            
+            f.write("\n")
+            f.write("x0 for T=290k\n")
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x290 = res.x
+
+            
+            temp = 296.0
+            temp_dat = np.loadtxt('pep_t_296.txt',delimiter=',')
+            lifetime_exp_zero = 11.125850840377698
+            lifetime_exp_res = 2.0385937159201912
+            lifetime_exp_high = 14.774653145254574
+            J = 15.5193/2.0
+            
+                    
+            res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x290,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
+            
+            f.write("\n")
+            f.write("x0 for T=296k\n")
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x296 = res.x
+
+            
+            temp = 310.0
+            temp_dat = np.loadtxt('pep_t_310.txt',delimiter=',')
+            lifetime_exp_zero = 10.688052807356911
+            lifetime_exp_res = 2.0093525777020207
+            lifetime_exp_high = 16.64817816298419
+            J = 16.1298/2.0
+            
+                    
+
+            res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x296,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
+            
+            f.write("\n")
+            f.write("x0 for T=310k\n")
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x310 = res.x
+
+            
+            temp = 330.0
+            temp_dat = np.loadtxt('pep_t_330.txt',delimiter=',')
+            lifetime_exp_zero = 8.834911169733505
+            lifetime_exp_res = 1.8434403349016562
+            lifetime_exp_high = 12.919057695843426
+            J = 18.3679/2.0
+    
+            
+            res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x310,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
+    
+            f.write("\n")
+            f.write("x0 for T=330k\n")
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x330 = res.x
+
+            temp = 350.0
+            temp_dat = np.loadtxt('pep_t_350.txt',delimiter=',')
+            lifetime_exp_zero = 9.731343150944575
+            lifetime_exp_res = 1.841454381233581
+            lifetime_exp_high = 15.695685358775423
+            J = 23.0478/2.0
+    
+            
+            res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0=x330,bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)))
+    
+            f.write("\n")
+            f.write("x0 for T=350k\n")
+            f.write(str(res)+"\n")
+            for i in range(0,len(res.x)):
+                p.write(str(res.x[i])+",")
+            p.write(str(temp)+"\n")
+            x350 = res.x
+
+    return
+
+calculate(results)

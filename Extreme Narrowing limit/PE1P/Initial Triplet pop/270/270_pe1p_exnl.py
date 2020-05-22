@@ -542,7 +542,7 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     standard_error = np.zeros_like(sampled_field)     
     compound_error = np.zeros_like(sampled_field)  
 
-    num_samples = 600
+    num_samples = 60
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
     

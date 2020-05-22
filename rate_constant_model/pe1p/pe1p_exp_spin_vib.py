@@ -648,7 +648,42 @@ def calc_yield(kstd,kisc,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     r_square = 1 - np.sum(mary)/np.sum(mean_diff)
     print('r square for '+str(temp)+'=',r_square)
     #----------------------------------------------
+
+    with open("dat_pe1p_relax_"+str(np.int(temp))+".txt","w+") as p:
+        
+        for i in range(0,len(triplet_yield)):
+            p.write(str(triplet_yield[i]))
+            if (i<(len(triplet_yield)-1)):
+                p.write(',')
     
+        p.write("\n")
+        for i in range(0,len(sampled_field)):
+            p.write(str(sampled_field[i]))
+            if (i<(len(sampled_field)-1)):
+                p.write(',')
+    
+    j_mat = np.array([0.0,2.0*j_exp,100.0])
+    lifetime_experiment = np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high])
+    
+    with open("lifetime_pe1p_relax_"+str(np.int(temp))+".txt","w+") as p:
+        
+        for i in range(0,len(lt)):
+            p.write(str(lt[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+    
+        p.write("\n")
+        for i in range(0,len(lt)):
+            p.write(str(j_mat[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+        
+        p.write("\n")
+        for i in range(0,len(lt)):
+            p.write(str(lifetime_experiment[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+                
     plt.clf()
     #plt.plot(field,ynew,'o')
     plt.plot(sampled_field,triplet_yield,'o--')

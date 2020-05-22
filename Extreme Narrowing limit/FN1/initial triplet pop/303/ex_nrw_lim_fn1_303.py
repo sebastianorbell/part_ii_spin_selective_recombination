@@ -531,16 +531,15 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     field = np.reshape(temp_dat[:,0],(len(temp_dat[:,0])))
     data_y = np.reshape(temp_dat[:,1],(len(temp_dat[:,1])))
     
-    sampled_field = np.linspace(0.0,120.0,40)
+    sampled_field = np.linspace(0.0,120.0,10)
     triplet_yield = np.zeros_like(sampled_field)
     standard_error = np.zeros_like(sampled_field)     
     compound_error = np.zeros_like(sampled_field)  
 
 
-    num_samples = 2000
+    num_samples = 300
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
-    w =5.0 
     
 #--------------------------------------------------------------------------------------------------------------------------------------
 #zero field lifetime
@@ -552,10 +551,16 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
             relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,0.0,J,ks,kt,lamb,temp,kstd)
             zero[index] = relaxation_0.lifetime()
             lifetime_zero += zero[index]
+
     zero_error = sts.sem(zero) 
     lifetime_zero = np.float(lifetime_zero)/np.float(num_samples)
     lifetime_dif_zero = lifetime_zero - lifetime_exp_zero
     
+    zero_count = np.zeros_like(zero)
+    zero_count[0] = 1.0
+    for i in range(len(zero)-1):
+        zero_count[i+1] = np.float(i+2)
+        zero[i+1] = zero[i]+zero[i+1]
     
 #--------------------------------------------------------------------------------------------------------------------------------------
 #resonance field lifetime (B=2J)
@@ -571,6 +576,12 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     lifetime_res = np.float(lifetime_res)/np.float(num_samples)
     lifetime_dif_res = lifetime_res - lifetime_exp_res
     
+    res_count = np.zeros_like(res)
+    res_count[0] = 1.0
+    for i in range(len(res)-1):
+        res_count[i+1] = np.float(i+2)
+        res[i+1] = res[i]+res[i+1]
+    
 #--------------------------------------------------------------------------------------------------------------------------------------
 # High field lifetime 
     
@@ -585,12 +596,18 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     lifetime_high = np.float(lifetime_high)/np.float(num_samples)
     lifetime_dif_high = lifetime_high - lifetime_exp_high
     
+    high_count = np.zeros_like(high)
+    high_count[0] = 1.0
+    for i in range(len(high)-1):
+        high_count[i+1] = np.float(i+2)
+        high[i+1] = high[i]+high[i+1]
+        
 #--------------------------------------------------------------------------------------------------------------------------------------
   
     
     for index_field,item_field in enumerate(sampled_field):
         total_t = 0.0
-        print("%",100.0*(np.float(index_field))/(np.float(len(sampled_field))))
+        #print("%",100.0*(np.float(index_field))/(np.float(len(sampled_field))))
         for index, item in enumerate(samples):
             np.random.seed(index)       
             relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,ks,kt,lamb,temp,kstd)
@@ -624,6 +641,38 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
 
 
     print(val)
+    
+    zero_plot = np.zeros_like(zero)
+    for i in range(len(zero)):
+        zero_plot[i] = lifetime_zero
+        
+    res_plot = np.zeros_like(res)
+    for i in range(len(res)):
+        res_plot[i] = lifetime_res
+
+    high_plot = np.zeros_like(zero)
+    for i in range(len(high)):
+        high_plot[i] = lifetime_high
+        
+    plt.clf()
+
+    plt.plot(zero_count,zero_plot,'--',color = 'black')
+    
+    plt.plot(zero_count,zero/zero_count,label = '(a) Zero field')
+
+    plt.plot(res_count,res_plot,'--',color = 'black')    
+    plt.plot(res_count,res/res_count,label = '(b) Resonant field')
+
+    plt.plot(high_count,high_plot,'--',color = 'black')    
+    plt.plot(high_count,high/high_count,label = '(c) High field')
+
+    
+    plt.xlabel('Number of samples',fontsize=14)
+    plt.ylabel('Lifetime',fontsize=14)
+    plt.title(r'Monte Carlo sampling for lifetimes of $FN_{1}$ at 303 k')
+    plt.legend(loc='best')
+    plt.savefig("montecarlo.pdf")
+    plt.show()
     
     plt.clf()
     #plt.plot(field,ynew,'o')
@@ -697,7 +746,7 @@ with open(str(temp)+"_fn1.txt","w+") as p:
             p.write(str(res.x[i])+",")
         p.write(str(temp)+"\n")
 """
-temp_dat = np.loadtxt('t_303.txt',delimiter=',')
+temp_dat = np.loadtxt('t_303_new.txt',delimiter=',')
 
 lifetime_exp_zero = 3.9824680115438866
 lifetime_exp_res = 1.2878152979810005
@@ -717,9 +766,6 @@ J = 22.59
 #ks = 0.235979
 #kt = 0.459212  
 #
-lamb = 0.10962353946547596
-ks = 0.09840286449049118
-kt = 3.7458083865326204
-kstd = 2.5772221122319436
+lamb, ks, kt, kstd = 0.3538402596009671,0.07517658705801128,3.2866882653397553,3.5924284620048637
 
 calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)     

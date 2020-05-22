@@ -11,11 +11,14 @@ import matplotlib.pyplot as plt
 
 fn1_k_sin = np.loadtxt('fn1_sin.txt',delimiter=',')
 fn1_k_trip = np.loadtxt('fn1_trip.txt',delimiter=',')
-data = np.loadtxt('fn1_no_kstd.txt',delimiter=',')
+data = np.loadtxt('fn1_no_kstd_new.txt',delimiter=',')
+
 # lamb,ks,kt,kstd,temp
 
 plt.plot(1.0/data[:,4],np.log(data[:,1]*(1.76e8)*np.sqrt(data[:,4])),'o--',label = 'ks')
 plt.plot(1.0/data[:,4],np.log(data[:,2]*(1.76e8)*np.sqrt(data[:,4])),'o--',label = 'kt')
+
+
 
 plt.plot(fn1_k_sin[:,0],(fn1_k_sin[:,1]),'o--',label='Ks experimental')
 plt.plot(fn1_k_trip[:,0],(fn1_k_trip[:,1]),'o--',label='Kt experimental')
@@ -56,7 +59,7 @@ plt.plot(1.0/fn1_k_sin[:,0],((np.exp(fn1_k_sin[:,1])*np.sqrt(fn1_k_sin[:,0])*(1.
 
 plt.xlabel('T(K)')
 plt.ylabel('k_s (mT)')
-plt.title('Plot of k_s versus T for PE1P')
+plt.title('Plot of k_s versus T for FN1')
 
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=2,
            ncol=2, mode="expand", borderaxespad=-2.5)
@@ -70,7 +73,7 @@ plt.ylabel('Initial triplet population')
 plt.title('FN1 in toluene at 480 nm measured 1 μs after photoexcitation')
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=2,
            ncol=7, mode="expand", borderaxespad=-2.)
-plt.ylim(0,0.25)
+
 plt.savefig("fn1_lam.pdf")
 plt.show()
 plt.clf()

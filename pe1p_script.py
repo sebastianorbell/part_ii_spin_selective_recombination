@@ -9,14 +9,12 @@ Script for dmj-pe1p-ndi
 
 """
 
-import time
-import timeit
 import numpy as np
 import scipy.linalg as la
-import matplotlib.pyplot as plt
 from scipy.linalg import inv as inv
-from scipy.optimize import minimize
+from scipy.optimize import differential_evolution
 import scipy.stats as sts
+from scipy import interpolate
 
 class rotational_relaxation:
     
@@ -479,7 +477,7 @@ def inertia_tensor(data):
 def rad_tensor_mol_axis(transform_mol,transform_dmj,tensor):
     return transform(transform_mol,(transform(inv(transform_dmj),tensor)))
 
-def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J):
+def calc_yield(dj,lamb,ks,kt,tau_c,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J):
 
 
     # Define variables, initial frame
@@ -554,15 +552,18 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
 
     field = np.reshape(temp_dat[:,0],(len(temp_dat[:,0])))
     data_y = np.reshape(temp_dat[:,1],(len(temp_dat[:,1])))
-    triplet_yield = np.zeros_like(field)
-    standard_error = np.zeros_like(field)     
     
+    sampled_field = np.linspace(0.0,120.0,25)
+    triplet_yield = np.zeros_like(sampled_field)
+    standard_error = np.zeros_like(sampled_field)     
+    compound_error = np.zeros_like(sampled_field)  
+
     exchange_rate = 1.0e0/(2.0e0*tau_c)
     
-    num_samples = 100
+    num_samples = 800
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
-    w = 5.0 
+    w =5.0 
     
 #--------------------------------------------------------------------------------------------------------------------------------------
 #zero field lifetime
@@ -570,12 +571,10 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     lifetime_zero = 0.0
     # zero field lifetime
     for index, item in enumerate(samples):
-            np.random.seed(index)
             relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,0.0,J,dj,ks,kt,exchange_rate,lamb,temp)
             lifetime_zero += relaxation_0.lifetime()
     lifetime_zero = np.float(lifetime_zero)/np.float(num_samples)
-    print('lifetime at zero field',lifetime_zero)
-    
+    print(lifetime_zero)
     lifetime_dif_zero = lifetime_zero - lifetime_exp_zero
     w_0 = w/lifetime_exp_zero
     
@@ -586,12 +585,10 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     lifetime_res = 0.0
     # zero field lifetime
     for index, item in enumerate(samples):
-            np.random.seed(index)
             relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,2.0*J,J,dj,ks,kt,exchange_rate,lamb,temp)
             lifetime_res += relaxation_0.lifetime()
     lifetime_res = np.float(lifetime_res)/np.float(num_samples)
-    print('lifetime at resonance',lifetime_res)
-    
+    print(lifetime_res)
     lifetime_dif_res = lifetime_res - lifetime_exp_res
     w_res = w/lifetime_exp_res
     
@@ -601,22 +598,19 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     lifetime_high = 0.0
     # zero field lifetime
     for index, item in enumerate(samples):
-            np.random.seed(index)
-            relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,100.0,J,dj,ks,kt,exchange_rate,lamb,temp)
+            relaxation_0 = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,120.0,J,dj,ks,kt,exchange_rate,lamb,temp)
             lifetime_high += relaxation_0.lifetime()
     lifetime_high = np.float(lifetime_high)/np.float(num_samples)
-    print('lifetime at high field',lifetime_high)
-    
+    print(lifetime_high)
     lifetime_dif_high = lifetime_high - lifetime_exp_high
     w_h = w/lifetime_exp_high
     
 #--------------------------------------------------------------------------------------------------------------------------------------
   
     
-    for index_field,item_field in enumerate(field):
+    for index_field,item_field in enumerate(sampled_field):
         total_t = 0.0
         for index, item in enumerate(samples):
-            np.random.seed(index)
             # Define class       
             relaxation = rotational_relaxation(aniso_dipolar,g1_iso,g2_iso,aniso_g1,aniso_g2,iso_h1,iso_h2,aniso_hyperfine_1,aniso_hyperfine_2,spin_numbers_1,spin_numbers_2,item_field,J,dj,ks,kt,exchange_rate,lamb,temp)
             # Calculate triplet yield
@@ -625,55 +619,52 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
             
         triplet_yield[index_field] = total_t
         standard_error[index_field] = sts.sem(trip)
-    
-    standard_error = standard_error/(triplet_yield[0])
+        compound_error[index_field] = np.sqrt(standard_error[0]*standard_error[0]*((1.0/triplet_yield[0])**2 + (standard_error[index_field]*standard_error[index_field]*(triplet_yield[index_field]/triplet_yield[0])**2)))
+        
+    compound_error[0] = 0.0
     triplet_yield = triplet_yield/(triplet_yield[0])
     
+
+
+    tck = interpolate.splrep(sampled_field, triplet_yield, s=0)
+    xnew = field
+    ynew = interpolate.splev(xnew, tck, der=0)
     # lagrange type terms to ensure that the experimental lifetime is correctly calculated and that Kt is greater than Ks
-    val = np.float(10.0*np.sum(((triplet_yield)-(data_y-data_y[0]+1.0))*((triplet_yield)-(data_y-data_y[0]+1.0))) + (lifetime_dif_zero*w_0)**4 + (lifetime_dif_res*w_res)**4 + (lifetime_dif_high*w_h)**4)
+    val = np.float(5.0*np.sum(((ynew)-(data_y-data_y[0]+1.0))*((ynew)-(data_y-data_y[0]+1.0))) + (lifetime_dif_zero*w_0)**2 + (lifetime_dif_res*w_res)**2 + (lifetime_dif_high*w_h)**2)
+
+    with open("pe1p_"+str(temp)+"_yield.txt","w+") as ff:
+        ff.write("field\n")
+        for item in sampled_field:
+            ff.write(str(item)+',')
+        ff.write('\n')
+        ff.write("Triplet Yield\n")
+        for item in triplet_yield:
+            ff.write(str(item)+',')
+        ff.write('\n')
+        ff.write("Standard_error\n")
+        for item in compound_error:
+            ff.write(str(item)+',')
     
-    plt.clf()
-    plt.plot(field,triplet_yield,'o--')
-    plt.plot(field,(data_y-data_y[0]+1.0),'o')
-    plt.fill_between(field, triplet_yield - 2.0*standard_error, triplet_yield + 2.0*standard_error,
-                 color='salmon', alpha=0.4)
-    plt.ylabel('Relative Triplet Yield')
-    plt.title('pe1p at (K) '+str(temp))
-    plt.xlabel('field (mT)')
-    plt.savefig("pe1p"+str(temp)+".pdf")
-    plt.show()
-    
-    plt.clf()
-    plt.plot(np.array([0.0,2.0*J,100.0]),np.array([lifetime_zero,lifetime_res,lifetime_high]), label = 'Calculated')
-    plt.plot(np.array([0.0,2.0*J,100.0]),np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high]),label = 'Experimental')
-    plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=2,
-           ncol=2, mode="expand", borderaxespad=-1.)
-    plt.xlabel('Field (mT)')
-    plt.ylabel('Lifetime')
-    plt.title('PE1P lifetime at (K) '+str(temp))
-    plt.savefig("pe1p_lifetimes_"+str(temp)+".pdf")
-    plt.show()
-    
-    print()
-    print('------------------')
-    print('temp =',temp)
-    print('------------------')
-    print()
-    print('tau_c,dj,lamb,ks,kt')
-    print(tau_c,dj,lamb,ks,kt)
-    print('_____',val,'_____')       
+    with open("pe1p_"+str(temp)+"_lifetime.txt","w+") as fl:
+        fl.write("Zero field lifetime\n")
+        fl.write(str(lifetime_zero)+'\n')
+        fl.write("Resonance field lifetime\n")
+        fl.write(str(lifetime_res)+'\n')
+        fl.write("High field lifetime\n")
+        fl.write(str(lifetime_high))        
+     
     return val
 
-"""
-t0 = time.clock()
-#np.random.seed()
+
+
+np.random.seed()
 # x0 = tau_c,dj,lamb,ks,kt
-#bnds = ((1e-5, 1e2), (1e-10, None),(1e-10, 0.10), (1e-5, 1.0e2), (1e-5, 1.0e2))
 bnds = ((1e-5, 1.0e-2),(1.0e-6, 1.0e3),(1.0e-10, 0.20),(1.0e-4, 1.0e0),(1e-4, 1.0e0))
-cons = ({'type': 'ineq', 'fun': lambda x:  x[3] - x[2]})
-with open("test_pe1p.txt","w+") as p:
-    with open("results_pe1p.txt","w+") as f:
-        f.write("x0 = tau_c,y,ks,kt,lamb\n")
+
+
+with open(str(temp)+"_dat_pe1p.txt","w+") as p:
+    with open(str(temp)+"_results_pe1p.txt","w+") as f:
+        f.write("x0 = dj,ks,kt,lamb\n")
         #---------------------------------------------------------------------------------------------------------------------------
         x0 = [0.0010137734779859275, 35.32797122950225, 0.1, 0.5167373150797832, 0.08239319732088853]
         
@@ -688,7 +679,7 @@ with open("test_pe1p.txt","w+") as p:
         #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='TNC',bounds=bnds,constraints=cons))
         res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
         f.write("\n")
-        f.write("x0 for T=296k\n")
+        f.write("x0 for T=290k\n")
         f.write(str(res)+"\n")
         for i in range(0,len(res.x)):
             p.write(str(res.x[i])+",")
@@ -729,7 +720,7 @@ with open("test_pe1p.txt","w+") as p:
         #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
         res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
         f.write("\n")
-        f.write("x0 for T=296k\n")
+        f.write("x0 for T=310k\n")
         f.write(str(res)+"\n")
         for i in range(0,len(res.x)):
             p.write(str(res.x[i])+",")
@@ -748,7 +739,7 @@ with open("test_pe1p.txt","w+") as p:
        # res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
         res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
         f.write("\n")
-        f.write("x0 for T=296k\n")
+        f.write("x0 for T=330k\n")
         f.write(str(res)+"\n")
         for i in range(0,len(res.x)):
             p.write(str(res.x[i])+",")
@@ -767,7 +758,7 @@ with open("test_pe1p.txt","w+") as p:
         #res = (minimize(lambda x1,x2,x3,x4,x5: calc_yield(*x1,x2,x3,x4,x5),x0,args=(temp,temp_dat,lifetime_exp,J), method='SLSQP',bounds=bnds,constraints=cons))
         res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
         f.write("\n")
-        f.write("x0 for T=296k\n")
+        f.write("x0 for T=350k\n")
         f.write(str(res)+"\n")
         for i in range(0,len(res.x)):
             p.write(str(res.x[i])+",")
@@ -777,14 +768,6 @@ with open("test_pe1p.txt","w+") as p:
 
 
 
-print('----------------------------------')
-print('**********************************')
-print(time.clock() - t0)
-print('**********************************')
-print('----------------------------------')
-
-
-"""
 
 tau_c = 0.0010137734779859275
 dj = 35.32797122950225
@@ -798,10 +781,6 @@ lifetime_exp_res = 2.095744981948086
 lifetime_exp_high = 10.476062668545783
 J = 13.0777/2.0
 
+calc_yield(dj,lamb,ks,kt,tau_c,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
 
-benchmarks = []
 
-benchmarks.append(timeit.Timer('calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)',
-            'from __main__ import calc_yield, tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J').timeit(number=1))
-print('-------------')
-print(benchmarks)

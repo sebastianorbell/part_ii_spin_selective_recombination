@@ -625,24 +625,77 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     r_square = 1 - np.sum(mary)/np.sum(mean_diff)
     print('r square for '+str(temp)+'=',r_square)
     
+    with open("dat_fn1_none_"+str(np.int(temp))+".txt","w+") as p:
+        
+        for i in range(0,len(triplet_yield)):
+            p.write(str(triplet_yield[i]))
+            if (i<(len(triplet_yield)-1)):
+                p.write(',')
+    
+        p.write("\n")
+        for i in range(0,len(sampled_field)):
+            p.write(str(sampled_field[i]))
+            if (i<(len(sampled_field)-1)):
+                p.write(',')
+                
+    j_mat = np.array([0.0,2.0*j_exp,120.0])
+    lifetime_experiment = np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high])
+    
+    with open("lifetime_fn1_none_"+str(np.int(temp))+".txt","w+") as p:
+        
+        for i in range(0,len(lt)):
+            p.write(str(lt[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+    
+        p.write("\n")
+        for i in range(0,len(lt)):
+            p.write(str(j_mat[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+        
+        p.write("\n")
+        for i in range(0,len(lt)):
+            p.write(str(lifetime_experiment[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+
+    
+    with open("experimental_fn1_"+str(np.int(temp))+".txt","w+") as f:
+        
+        for i in range(0,len(data_y)):
+            f.write(str(data_y[i]-data_y[0]+1.0))
+            if (i<(len(data_y)-1)):
+                f.write(',')
+                
+        f.write("\n")
+        for i in range(0,len(field)):
+            f.write(str(field[i]))
+            if (i<(len(field)-1)):
+                f.write(',')
+    
     plt.clf()
     #plt.plot(field,ynew,'o')
-    plt.plot(sampled_field,triplet_yield,'o--')
-    plt.plot(field,(data_y-data_y[0]+1.0),'o')
- 
-    plt.ylabel('Relative Triplet Yield')
-    plt.title('FN1 at (K) '+str(temp))
-    plt.xlabel('field (mT)')
-    plt.savefig("fn1_expon_"+str(np.int(temp))+"_temp_KSTD.pdf") 
+    plt.plot(sampled_field,triplet_yield,'o--',label = 'Simulation')
+    plt.plot(field,(data_y-data_y[0]+1.0),'o',label = 'Experiment')
+    plt.title('$FN_{1}$ at (K) '+str(temp))
+    plt.xlabel(r'Field (mT)', fontsize =16)
+    plt.ylabel(r'Relative Triplet Yield', fontsize=16)
+    plt.legend( loc=0,
+               ncol=3 )
+    plt.savefig("fn1_expon_"+str(np.int(temp))+"_KSTD.pdf") 
     plt.show()
     
     plt.clf()
-    plt.plot(np.array([0.0,2.0*j_exp,120.0]),np.array([lifetime_zero,lifetime_res,lifetime_high]), label = 'Calculated')
-    plt.plot(np.array([0.0,2.0*j_exp,120.0]),np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high]),label = 'Experimental')
-    plt.xlabel('Field (mT)')
-    plt.ylabel('Lifetime')
+    plt.plot(np.array([0.0,2.0*j_exp,120.0]),np.array([lifetime_zero,lifetime_res,lifetime_high]), label = 'Simulation')
+    plt.plot(np.array([0.0,2.0*j_exp,120.0]),np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high]),label = 'Experiment')
+    plt.xlabel(r'Field (mT)', fontsize =16)
+    plt.ylabel(r'Lifetime ($mT^{-1}$)', fontsize=16)
     plt.title('FN1 extreme narrowing limit lifetime at (K) '+str(temp))
-    plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=2, ncol=2, mode="expand", borderaxespad=-1.)
+    
+    plt.grid()
+    plt.legend( loc=0,
+               ncol=3 )
     plt.savefig("FN1_lifetimes_expon_"+str(np.int(temp))+"_temp_KSTD.pdf")
     plt.show()
     
@@ -949,13 +1002,13 @@ def plot_functions(x):
     plt.plot(1.0/temp,np.log(jcalc*(1.76e8)*np.sqrt(temp)),color = 'green',label='J')
     plt.plot(1.0/temp,np.log(jcalc_exp*(1.76e8)*np.sqrt(temp)),'--',color = 'green')
 
-    plt.xlabel('1/T')
-    plt.ylabel('ln(kx*T^0.5)')
-    #plt.title('FN1 Model (i)')
-    plt.legend(bbox_to_anchor=(0.051, 0.89, 0.9, .10), loc=2,
-               ncol=7, mode="expand", borderaxespad=-2.)
+    plt.ylabel(r'$ln(k_{x} \times T^{0.5} \; (mT \; K^{0.5}))$', fontsize=16) 
+    plt.xlabel(r'$ 1/T \; (K^{-1})$', fontsize=16)
+    
     plt.grid()
-    plt.ylim(17,26)
+    plt.legend( loc=0,
+               ncol=3 )
+    plt.ylim(17,27)
     plt.savefig("FN1_compare_model.pdf")
     plt.show()
     
@@ -1120,10 +1173,13 @@ lamb,kstd = 0.4083737530356398, 1.0337126950441902
 #parameter(0.4083737530356398, 1.0337126950441902,9272.880331248889, 28.54510625202782, 7.153518252026717, 10.800816721808726, 20.971096992603982, -0.0025297687286688748)
 #lamb0,kstd,a_t,ea_t,a_s,ea_s,j_a,j_b
 x_exp =[307.4742853024725, 242.56726543090375, 0.03518531449507452, -1034.1287679240731,320.75991811, 794.11715799,0.47031912872057524, 0.05971187923470023]
-#parameter_exponential(0.4286019579159132, 1.0494508310142034,307.4742853024725, 242.56726543090375, 0.03518531449507452, -1034.1287679240731,320.75991811, 794.11715799)
+
+#parameter_exponential(0.4083737530356398, 1.0337126950441902,307.4742853024725, 242.56726543090375, 0.03518531449507452, -1034.1287679240731,320.75991811, 794.11715799)
+#parameter_exponential(0.0, 1.0337126950441902,307.4742853024725, 242.56726543090375, 0.03518531449507452, -1034.1287679240731,320.75991811, 794.11715799)
+parameter_exponential(0.4083737530356398, 0.0,307.4742853024725, 242.56726543090375, 0.03518531449507452, -1034.1287679240731,320.75991811, 794.11715799)
+#parameter_exponential(0.0,1.0337126950441902,242.77401911801164, 262.36310549934234, 0.03230428995004531, -1230.5004031439778,320.75991811, 794.11715799)
+
 #plot_functions([9272.880331248889, 28.54510625202782, 7.153518252026717, 10.800816721808726, 20.971096992603982, -0.0025297687286688748,307.4742853024725, 242.56726543090375, 0.03518531449507452, -1034.1287679240731,320.75991811, 794.11715799])
 bnds = [(0.0,1.5),(0.0,0.01)]
 #differential_evolution(lambda x1,x2,x3,x4,x5,x6,x7,x8: parameter_expon_kstd(*x1,x2,x3,x4,x5,x6,x7,x8),bounds = bnds, args = (0.4286019579159132,307.4742853024725, 242.56726543090375, 0.03518531449507452, -1034.1287679240731,320.75991811, 794.11715799),maxiter = 40)
-
-
-parameter_expon_kstd(0.6101340879904766,164.30207037017342,0.4286019579159132,307.4742853024725, 242.56726543090375, 0.03518531449507452, -1034.1287679240731,320.75991811, 794.11715799)
+#parameter_expon_kstd(0.6101340879904766,164.30207037017342,0.4286019579159132,307.4742853024725, 242.56726543090375, 0.03518531449507452, -1034.1287679240731,320.75991811, 794.11715799)

@@ -10,6 +10,7 @@ import numpy as np
 import scipy.linalg as la
 from scipy.linalg import inv as inv
 from scipy.optimize import differential_evolution
+from scipy.optimize import minimize
 import scipy.stats as sts
 from scipy import interpolate
 
@@ -412,7 +413,7 @@ def transform(N,T):
 def array_construct(axx,ayy,azz,axy,axz,ayz):
     A = np.array([[axx,axy,axz],[axy,ayy,ayz],[axz,ayz,azz]])
     return A
-
+ 
 
 def inertia_tensor(data):
     
@@ -538,11 +539,13 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     compound_error = np.zeros_like(sampled_field)  
 
 
-    num_samples = 2000
+    num_samples = 200
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
+    
 #--------------------------------------------------------------------------------------------------------------------------------------
 #zero field lifetime
+    
     
     lifetime_zero = 0.0
     zero = np.zeros_like(samples)
@@ -582,14 +585,16 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
             lifetime_high += high[index]
     high_error = sts.sem(high) 
     lifetime_high = np.float(lifetime_high)/np.float(num_samples)
-    lifetime_dif_high = lifetime_high - lifetime_exp_high
+    lifetime_dif_high = lifetime_high - lifetime_exp_high 
+    
+    
 
 #--------------------------------------------------------------------------------------------------------------------------------------
   
     
     for index_field,item_field in enumerate(sampled_field):
         total_t = 0.0
-        print("%",100.0*(np.float(index_field))/(np.float(len(sampled_field))))
+        #print("%",100.0*(np.float(index_field))/(np.float(len(sampled_field))))
         for index, item in enumerate(samples):
             np.random.seed(index)
             # Define class       
@@ -621,7 +626,8 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     lt_var = (mean_lt - lt)*(mean_lt - lt)
     
     val =  0.5*np.float(((len(sampled_field)-1.0)/(len(sampled_field)+1.0))*(np.sum(mary)/np.sum(mary_var)) + (2.0/(len(sampled_field)+1.0))*(np.sum(sq_lt_diff)/np.sum(lt_var)))
-
+    
+    print('lamb,ks,kt,kstd',lamb,ks,kt,kstd)
     print(val)
 
     plt.clf()
@@ -633,7 +639,7 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     plt.ylabel('Relative Triplet Yield')
     plt.title('FN1 at (K) '+str(temp))
     plt.xlabel('field (mT)')
-    plt.savefig("fn1"+str(temp)+".pdf") 
+    #plt.savefig("fn1"+str(temp)+".pdf") 
     plt.show()
     
     plt.clf()
@@ -645,46 +651,37 @@ def calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     plt.xlabel('Field (mT)')
     plt.ylabel('Lifetime')
     plt.title('FN1 extreme narrowing limit lifetime at (K) '+str(temp))
-    plt.savefig("FN1_lifetimes_"+str(temp)+".pdf")
-    plt.show()
+    #plt.savefig("FN1_lifetimes_"+str(temp)+".pdf")"""
+    plt.show() 
     
-    with open("fn1_"+str(temp)+"_no_lamb_yield.txt","w+") as ff:
-        for index in range(len(sampled_field)):
-            ff.write(str(sampled_field[index])+',')
-            ff.write(str(triplet_yield[index])+',')
-            ff.write(str(compound_error[index]))
-            ff.write('\n')
 
-    
-    with open("fn1_"+str(temp)+"_no_lamb_lifetime.txt","w+") as fl:
-        fl.write(str(lifetime_zero)+',')
-        fl.write(str(lifetime_res)+',')
-        fl.write(str(lifetime_high))\
     
     return val
 
 np.random.seed()
 # x0 = lamb,ks,kt,kstd
-bnds = [(1.0e-4, 0.3),(1.0e-3, 1.0e0),(1e-3, 1.0e1),(1.0e-5,1.0e1)]
+bnds = [(0.3, 0.5),(0.02, 0.06),(10.0,35.0)]
 
 temp = 353.0
-
 """
+
 with open(str(temp)+"_dat_fn1.txt","w+") as p:
     with open(str(temp)+"_results_fn1.txt","w+") as f:
         f.write("x0 = dj,lamb,ks,kt\n")
         f.write("tau_c = 0.005 constant\n")      
         #---------------------------------------------------------------------------------------------------------------------------
 
-        temp_dat = np.loadtxt('t_353.txt',delimiter=',')
+        temp_dat = np.loadtxt('t_353_new.txt',delimiter=',')
 
         lifetime_exp_zero = 7.049588177788923
         lifetime_exp_res = 1.4796659908006953
         lifetime_exp_high = 8.078488090136942
-
+        x = [0.3, 0.030867040869067, 27.857193577474373]
+        x1 = [0.3759389320459983, 0.0261220075271366, 20.369181086758637]
         J = 35.41
-
-        res = differential_evolution(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),bounds=bnds,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),maxiter=10)
+        kstd = 0.0
+        #res = minimize(lambda x1,x2,x3,x4,x5,x6,x7,x8: calc_yield(*x1,x2,x3,x4,x5,x6,x7,x8),x0=x,bounds=bnds,args=(kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J))
+        res = differential_evolution(lambda x1,x2,x3,x4,x5,x6,x7,x8: calc_yield(*x1,x2,x3,x4,x5,x6,x7,x8),bounds=bnds,args=(kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),maxiter=10)
        
         f.write("\n")
         f.write("x0 for T=273k\n")
@@ -693,7 +690,7 @@ with open(str(temp)+"_dat_fn1.txt","w+") as p:
             p.write(str(res.x[i])+",")
         p.write(str(temp)+"\n")
 """
-temp_dat = np.loadtxt('t_353.txt',delimiter=',')
+temp_dat = np.loadtxt('t_353_new.txt',delimiter=',')
 
 lifetime_exp_zero = 7.049588177788923
 lifetime_exp_res = 1.4796659908006953
@@ -715,6 +712,9 @@ kstd = 8.017707448438157
 #ks = 0.04876259390539783
 #kt = 6.594973593383234
 #kstd = 2.068193363793661 
+lamb,ks,kt = 0.4402062176216847, 0.029574543828896935, 15.41570849175789
 
-calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
-        
+kstd = 0.0
+
+
+calc_yield(lamb,ks,kt,kstd,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J) 

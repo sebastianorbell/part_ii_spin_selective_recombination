@@ -1,0 +1,2 @@
+x0 = dj,lamb,ks,kt
+tau_c = 0.005 constant

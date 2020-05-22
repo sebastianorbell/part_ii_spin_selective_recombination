@@ -558,7 +558,7 @@ def calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_
     
     exchange_rate = 1.0e0/(2.0e0*tau_c)
     
-    num_samples = 16
+    num_samples = 300
     samples = np.arange(1.0,np.float(num_samples))
     trip = np.zeros_like(samples)
     w =5.0 
@@ -679,8 +679,14 @@ with open("test_fn1.txt","w+") as p:
         f.write("x0 = y,ks,kt,lamb\n")
         
         #---------------------------------------------------------------------------------------------------------------------------
-        """
-        x0 = [0.0005723367420829245,61.26208867322158,0.005,0.16694391064910116,1.5]
+        
+        #x0 = [0.0005723367420829245,61.26208867322158,0.005,0.16694391064910116,1.5]
+
+        tau_c = 1.56085338e-04
+        dj = 5.69636397e+01
+        lamb = 2.35420773e-02
+        ks = 1.54924470e-01 
+        kt = 1.80537366e+01
         #ks = 0.3848
         #kt = 0.2731
         temp_dat = np.loadtxt('t_273.txt',delimiter=',')
@@ -693,6 +699,9 @@ with open("test_fn1.txt","w+") as p:
         # Lorentzian fitted J
         J = 20.25
         
+        calc_yield(tau_c,dj,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J)
+        
+        """
         res = (minimize(lambda x1,x2,x3,x4,x5,x6,x7: calc_yield(*x1,x2,x3,x4,x5,x6,x7),x0,args=(temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high,J),bounds=bnds))
        
         f.write("\n")
@@ -701,6 +710,7 @@ with open("test_fn1.txt","w+") as p:
         for i in range(0,len(res.x)):
             p.write(str(res.x[i])+",")
         p.write(str(temp)+"\n")
+        
         
         
         #---------------------------------------------------------------------------------------------------------------------------
@@ -750,7 +760,7 @@ with open("test_fn1.txt","w+") as p:
         for i in range(0,len(res.x)):
             p.write(str(res.x[i])+",")
         p.write(str(temp)+"\n")
-        """    
+          
         #---------------------------------------------------------------------------------------------------------------------------
         
         #x0 = [0.5,0.053144]
@@ -776,7 +786,7 @@ with open("test_fn1.txt","w+") as p:
             p.write(str(res.x[i])+",")
         p.write(str(temp)+"\n")
        
-        """      
+           
         #---------------------------------------------------------------------------------------------------------------------------
         
         #x0 = [0.5,0.03822]

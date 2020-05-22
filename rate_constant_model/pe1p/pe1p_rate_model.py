@@ -635,16 +635,66 @@ def calc_yield(kstd,lamb,ks,kt,temp,temp_dat,lifetime_exp_zero,lifetime_exp_res,
     print('r square for '+str(temp)+'=',r_square)
     #----------------------------------------------
     
+    with open("dat_pe1p_temp_kstd_"+str(np.int(temp))+".txt","w+") as p:
+        
+        for i in range(0,len(triplet_yield)):
+            p.write(str(triplet_yield[i]))
+            if (i<(len(triplet_yield)-1)):
+                p.write(',')
+    
+        p.write("\n")
+        for i in range(0,len(sampled_field)):
+            p.write(str(sampled_field[i]))
+            if (i<(len(sampled_field)-1)):
+                p.write(',')
+    
+    j_mat = np.array([0.0,2.0*j_exp,100.0])
+    lifetime_experiment = np.array([lifetime_exp_zero,lifetime_exp_res,lifetime_exp_high])
+    
+    with open("lifetime_pe1p_temp_kstd_"+str(np.int(temp))+".txt","w+") as p:
+        
+        for i in range(0,len(lt)):
+            p.write(str(lt[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+    
+        p.write("\n")
+        for i in range(0,len(lt)):
+            p.write(str(j_mat[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+        
+        p.write("\n")
+        for i in range(0,len(lt)):
+            p.write(str(lifetime_experiment[i]))
+            if (i<(len(lt)-1)):
+                p.write(',')
+    
+    with open("experimental_pe1p_temp_kstd_"+str(np.int(temp))+".txt","w+") as f:
+        
+        for i in range(0,len(data_y)):
+            f.write(str(data_y[i]-data_y[0]+1.0))
+            if (i<(len(data_y)-1)):
+                f.write(',')
+                
+        f.write("\n")
+        for i in range(0,len(field)):
+            f.write(str(field[i]))
+            if (i<(len(field)-1)):
+                f.write(',')
+                
     plt.clf()
     #plt.plot(field,ynew,'o')
-    plt.plot(sampled_field,triplet_yield,'o--')
-    plt.plot(field,(data_y-data_y[0]+1.0),'o')
+    plt.plot(sampled_field,triplet_yield,'o--',label='Simulation')
+    plt.plot(field,(data_y-data_y[0]+1.0),'o',label='Experiment')
 
     #plt.fill_between(sampled_field, triplet_yield - 2.0*compound_error, triplet_yield + 2.0*compound_error,
     #             color='salmon', alpha=0.4)
-    plt.ylabel('Relative Triplet Yield')
-    plt.title('PE1P at (K) '+str(temp))
-    plt.xlabel('field (mT)')
+    plt.xlabel(r'Field (mT)', fontsize =16)
+    plt.ylabel(r'Relative Triplet Yield', fontsize=16)
+    plt.title(r'$PE_{1}P$ at (K) '+str(temp))
+    plt.legend( loc=0,
+               ncol=3 )
     plt.savefig("PE1p_expon_"+str(np.int(temp))+"_temp_KSTD.pdf") 
     plt.show()
     
@@ -680,8 +730,8 @@ def exponential(a_t,ea_t, a_s, ea_s, j_a,j_b,lamb0,lamb_coef,temp):
     return ks,kt,j,lamb
 
 def parameter_exponential(lamb0,lamb_coef,kstd,a_t,ea_t,a_s,ea_s,j_a,j_b):
-    lamb0 = 0.0
-    lamb_coef = 0.0
+    #lamb0 = 0.0
+    #lamb_coef = 0.0
     #a_t,ea_t,a_s,ea_s,j_a,j_b,lamb0,kstd = x[0],x[1],x[2],x[3],x[4],x[5],x[6],x[7]
     print('lamb0,lamb_coef,kstd',lamb0,lamb_coef,kstd)
     chai_lifetime = np.zeros([6])
@@ -1103,12 +1153,13 @@ def plot_functions(x):
     plt.plot(1.0/temp,np.log(jcalc*(1.76e8)*np.sqrt(temp)),'-',color = 'green',label='J')    
     plt.plot(1.0/temp,np.log(jcalc_expon*(1.76e8)*np.sqrt(temp)),'--',color = 'green')    
         
-    plt.xlabel('1/T')
-    plt.ylabel('ln(kx*T^0.5)')
-    plt.legend(bbox_to_anchor=(0.051, 0.89, 0.9, .10), loc=2,
-               ncol=7, mode="expand", borderaxespad=-2.)
+    plt.ylabel(r'$ln(k_{x} \times T^{0.5} \; (mT \; K^{0.5}))$', fontsize=16) 
+    plt.xlabel(r'$ 1/T \; (K^{-1})$', fontsize=16)
+    
     plt.grid()
-    plt.ylim(17,26)
+    plt.legend( loc=0,
+               ncol=3 )
+    plt.ylim(17,27)
     plt.savefig("PE1P_compare_model.pdf")
     plt.show()
     
@@ -1159,6 +1210,8 @@ bnds = [(0.0,1.0),(0.0,0.01)]
 #--------------------------------------------------------------------------------------------------
 
 #parameter_exponential(0.0, 0.0014784707997337145, 0.6411116678623568,13.540586758641943, -229.10947592014017, 0.07055221973659839, -422.2854998597582,114.63857384, 815.57485671)
+#parameter_exponential(0.0, 0.0014784707997337145, 0.0,13.540586758641943, -229.10947592014017, 0.07055221973659839, -422.2854998597582,114.63857384, 815.57485671)
+#parameter_exponential(0.0, 0.0, 0.64111,100.0,0.0,0.3241742059909369,0.0,58.63421730735156,593.0724783217792)
 #plot_functions([2917.3926446657283, 30.414462856426532, 14.977100459272265 ,26.966808941028567, 6.566995219911077, -0.0025588238674342286,13.540586758641943, -229.10947592014017, 0.07055221973659839, -422.2854998597582,114.63857384, 815.57485671])
 
 parameter_expon_kstd(0.011942375846940023,1.6141553447361332,0.0, 0.0014784707997337145,13.540586758641943, -229.10947592014017, 0.07055221973659839, -422.2854998597582,114.63857384, 815.57485671)
